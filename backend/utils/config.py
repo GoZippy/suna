@@ -16,7 +16,7 @@ Usage:
 
 import os
 from enum import Enum
-from typing import Dict, Any, Optional, get_type_hints, Union
+from typing import Dict, Any, Optional, get_type_hints, Union, List
 from dotenv import load_dotenv
 import logging
 
@@ -246,10 +246,26 @@ class Configuration:
     
 
     
-    # Supabase configuration
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    # Database configuration (PostgreSQL)
+    DATABASE_URL: str = "postgresql://suna_user:suna_password@localhost:5432/suna"
+    
+    # Legacy Supabase configuration (for migration purposes)
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+    
+    # JWT configuration
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
+    
+    # Local storage configuration
+    LOCAL_STORAGE_PATH: str = "./data/storage"
+    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    ALLOWED_FILE_EXTENSIONS: List[str] = [
+        '.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml',
+        '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp',
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+        '.zip', '.tar', '.gz', '.csv'
+    ]
     
     # Redis configuration
     REDIS_HOST: str
@@ -283,6 +299,13 @@ class Configuration:
     SANDBOX_IMAGE_NAME = "kortix/suna:0.1.3.4"
     SANDBOX_SNAPSHOT_NAME = "kortix/suna:0.1.3.4"
     SANDBOX_ENTRYPOINT = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
+    
+    # Local container orchestration configuration
+    USE_LOCAL_CONTAINERS: bool = False  # Set to True to use local Docker instead of Daytona
+    LOCAL_CONTAINER_IMAGE: str = "suna/agent-sandbox:latest"
+    LOCAL_CONTAINER_NETWORK: str = "suna_sandbox_network"
+    LOCAL_CONTAINER_PORT_RANGE_START: int = 15900
+    LOCAL_CONTAINER_PORT_RANGE_END: int = 16900
 
     # LangFuse configuration
     LANGFUSE_PUBLIC_KEY: Optional[str] = None
@@ -295,6 +318,9 @@ class Configuration:
     # API Keys system configuration
     API_KEY_SECRET: str = "default-secret-key-change-in-production"
     API_KEY_LAST_USED_THROTTLE_SECONDS: int = 900
+    
+    # JWT Authentication configuration
+    JWT_SECRET_KEY: Optional[str] = None
     
     # Agent execution limits (can be overridden via environment variable)
     _MAX_PARALLEL_AGENT_RUNS_ENV: Optional[str] = None

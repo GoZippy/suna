@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>System Statistics</h2>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.total_users }}</span>
+            <div class="stat-label">Total Users</div>
+        </div>
+        
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.active_users }}</span>
+            <div class="stat-label">Active Users</div>
+        </div>
+        
+        <div class="stat-card">
+            <span class="stat-number">{{ stats.total_users - stats.active_users }}</span>
+            <div class="stat-label">Inactive Users</div>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- Users by Role -->
+    <div class="card">
+        <h2>Users by Role</h2>
+        {% if stats.users_by_role %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role, count in stats.users_by_role.items() %}
+                <tr>
+                    <td><span class="badge badge-{{ role }}">{{ role.title() }}</span></td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No role data available.</p>
+        {% endif %}
+    </div>
+    
+    <!-- Users by Tier -->
+    <div class="card">
+        <h2>Users by Tier</h2>
+        {% if stats.users_by_tier %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tier</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tier, count in stats.users_by_tier.items() %}
+                <tr>
+                    <td><span class="badge badge-{{ tier }}">{{ tier.title() }}</span></td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No tier data available.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Quick Actions</h2>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="/api/admin/users/create" class="btn btn-success">Create New User</a>
+        <a href="/api/admin/users" class="btn">Manage Users</a>
+        <a href="/api/admin/" class="btn">Dashboard</a>
+    </div>
+</div>
+{% endblock %}

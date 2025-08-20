@@ -1,0 +1,12 @@
+# Database dependencies for Suna self-hosted migration
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.23
+alembic>=1.13.1
+redis>=5.0.1
+pgvector>=0.2.4
+bcrypt>=4.1.2
+python-dotenv>=1.0.0
+
+# For migration script
+PyJWT>=2.8.0

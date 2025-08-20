@@ -22,6 +22,7 @@ import uuid
 from agent import api as agent_api
 
 from sandbox import api as sandbox_api
+from services import local_sandbox_api
 from services import billing as billing_api
 from flags import api as feature_flags_api
 from services import transcription as transcription_api
@@ -55,6 +56,11 @@ async def lifespan(app: FastAPI):
         
         
         sandbox_api.initialize(db)
+        
+        # Initialize local sandbox API if using local containers
+        if config.USE_LOCAL_CONTAINERS:
+            local_sandbox_api.initialize(db)
+            logger.info("Local container orchestration initialized")
         
         # Initialize Redis connection
         from services import redis
@@ -158,6 +164,10 @@ api_router = APIRouter()
 # Include all API routers without individual prefixes
 api_router.include_router(agent_api.router)
 api_router.include_router(sandbox_api.router)
+
+# Include local sandbox API if using local containers
+if config.USE_LOCAL_CONTAINERS:
+    api_router.include_router(local_sandbox_api.router)
 api_router.include_router(billing_api.router)
 api_router.include_router(feature_flags_api.router)
 api_router.include_router(api_keys_api.router)
@@ -176,6 +186,9 @@ api_router.include_router(email_api.router)
 from knowledge_base import api as knowledge_base_api
 api_router.include_router(knowledge_base_api.router)
 
+from knowledge_base import vector_api as vector_knowledge_base_api
+api_router.include_router(vector_knowledge_base_api.router)
+
 api_router.include_router(triggers_api.router)
 
 from pipedream import api as pipedream_api
@@ -190,6 +203,19 @@ api_router.include_router(admin_api.router)
 
 from composio_integration import api as composio_api
 api_router.include_router(composio_api.router)
+
+from services import auth_api
+api_router.include_router(auth_api.router)
+
+from services import admin_interface
+api_router.include_router(admin_interface.router)
+
+# Add new local services
+from services import websocket_api
+api_router.include_router(websocket_api.router)
+
+from services import storage_api
+api_router.include_router(storage_api.router)
 
 @api_router.get("/health")
 async def health_check():

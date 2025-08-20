@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>Create New User</h2>
+    
+    {% if error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <form method="post" action="/api/admin/users/create">
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+            <small style="color: #666; font-size: 0.8rem;">
+                Password must be at least 8 characters with uppercase, lowercase, number, and special character.
+            </small>
+        </div>
+        
+        <div class="form-group">
+            <label for="role">Role</label>
+            <select id="role" name="role" required>
+                {% for role in roles %}
+                <option value="{{ role }}">{{ role.title() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="tier">Tier</label>
+            <select id="tier" name="tier" required>
+                {% for tier in tiers %}
+                <option value="{{ tier }}">{{ tier.title() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button type="submit" class="btn btn-success">Create User</button>
+            <a href="/api/admin/users" class="btn">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

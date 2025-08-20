@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>User Details: {{ user.email }}</h2>
+        <a href="/api/admin/users" class="btn">Back to Users</a>
+    </div>
+    
+    {% if error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <!-- User Information -->
+        <div>
+            <h3 style="margin-bottom: 1rem; color: #2c3e50;">User Information</h3>
+            <p><strong>ID:</strong> {{ user.id }}</p>
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            <p><strong>Role:</strong> <span class="badge badge-{{ user.role }}">{{ user.role }}</span></p>
+            <p><strong>Tier:</strong> <span class="badge badge-{{ user.tier }}">{{ user.tier }}</span></p>
+            <p><strong>Status:</strong> 
+                {% if user.is_active %}
+                    <span style="color: #27ae60;">Active</span>
+                {% else %}
+                    <span style="color: #e74c3c;">Inactive</span>
+                {% endif %}
+            </p>
+            <p><strong>Created:</strong> {{ user.created_at }}</p>
+            <p><strong>Updated:</strong> {{ user.updated_at }}</p>
+        </div>
+        
+        <!-- Edit Form -->
+        <div>
+            <h3 style="margin-bottom: 1rem; color: #2c3e50;">Edit User</h3>
+            <form method="post" action="/api/admin/users/{{ user.id }}/update">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" value="{{ user.email }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">New Password (leave blank to keep current)</label>
+                    <input type="password" id="password" name="password" placeholder="Enter new password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role">
+                        {% for role in roles %}
+                        <option value="{{ role }}" {% if role == user.role %}selected{% endif %}>
+                            {{ role.title() }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="tier">Tier</label>
+                    <select id="tier" name="tier">
+                        {% for tier in tiers %}
+                        <option value="{{ tier }}" {% if tier == user.tier %}selected{% endif %}>
+                            {{ tier.title() }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-success">Update User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Danger Zone -->
+    <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #ddd;">
+        <h3 style="color: #e74c3c; margin-bottom: 1rem;">Danger Zone</h3>
+        <p style="color: #666; margin-bottom: 1rem;">
+            Deleting a user will deactivate their account and remove access to the system.
+        </p>
+        <form method="post" action="/api/admin/users/{{ user.id }}/delete" 
+              onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.')">
+            <button type="submit" class="btn btn-danger">Delete User</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: suna_postgres
+    environment:
+      POSTGRES_DB: suna
+      POSTGRES_USER: suna_user
+      POSTGRES_PASSWORD: suna_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - suna_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suna_user -d suna"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: suna_redis
+    command: redis-server --appendonly yes --requirepass suna_redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - suna_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Suna backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: suna_backend
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://suna_user:suna_password@postgres:5432/suna
+      
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: suna_redis_password
+      REDIS_SSL: false
+      
+      # Local container orchestration
+      USE_LOCAL_CONTAINERS: "true"
+      LOCAL_CONTAINER_IMAGE: "suna/agent-sandbox:latest"
+      LOCAL_CONTAINER_NETWORK: "suna_sandbox_network"
+      LOCAL_CONTAINER_PORT_RANGE_START: 15900
+      LOCAL_CONTAINER_PORT_RANGE_END: 16900
+      
+      # Environment mode
+      ENV_MODE: local
+      
+      # JWT configuration
+      JWT_SECRET_KEY: "local-development-secret-key-change-in-production"
+      
+      # Local storage
+      LOCAL_STORAGE_PATH: "/app/data/storage"
+      
+      # API Keys
+      API_KEY_SECRET: "local-api-key-secret"
+      
+      # Optional: Add your API keys here
+      # OPENAI_API_KEY: "your-openai-api-key"
+      # ANTHROPIC_API_KEY: "your-anthropic-api-key"
+      
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for container management
+      - backend_storage:/app/data
+      - ./backend:/app  # Development volume mount
+    ports:
+      - "8000:8000"
+    networks:
+      - suna_network
+      - suna_sandbox_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Suna frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: suna_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_ENV_MODE: local
+    volumes:
+      - ./frontend:/app  # Development volume mount
+      - /app/node_modules  # Prevent overwriting node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - suna_network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    command: ["npm", "run", "dev"]
+
+  # Ollama for local LLM inference (optional)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: suna_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - suna_network
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    # Uncomment the following lines if you have GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Prometheus for monitoring (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: suna_prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - suna_network
+    restart: unless-stopped
+
+  # Grafana for monitoring dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: suna_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3001:3000"
+    networks:
+      - suna_network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_storage:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  suna_network:
+    driver: bridge
+    labels:
+      - "managed_by=suna"
+  suna_sandbox_network:
+    driver: bridge
+    options:
+      com.docker.network.bridge.enable_icc: "false"  # Disable inter-container communication for security
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    labels:
+      - "managed_by=suna_container_manager"

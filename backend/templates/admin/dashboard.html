@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>Welcome, {{ admin_user.email }}</h2>
+    <p>Welcome to the Suna administration interface. Use the navigation above to manage users and view system statistics.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-number">👥</span>
+        <div class="stat-label">User Management</div>
+        <p style="margin-top: 1rem;">
+            <a href="/api/admin/users" class="btn">Manage Users</a>
+        </p>
+    </div>
+    
+    <div class="stat-card">
+        <span class="stat-number">📊</span>
+        <div class="stat-label">System Statistics</div>
+        <p style="margin-top: 1rem;">
+            <a href="/api/admin/stats" class="btn">View Stats</a>
+        </p>
+    </div>
+    
+    <div class="stat-card">
+        <span class="stat-number">➕</span>
+        <div class="stat-label">Create User</div>
+        <p style="margin-top: 1rem;">
+            <a href="/api/admin/users/create" class="btn btn-success">New User</a>
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Quick Actions</h2>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="/api/admin/users/create" class="btn btn-success">Create New User</a>
+        <a href="/api/admin/users" class="btn">View All Users</a>
+        <a href="/api/admin/stats" class="btn">System Statistics</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>System Information</h2>
+    <p><strong>Admin User:</strong> {{ admin_user.email }}</p>
+    <p><strong>Role:</strong> <span class="badge badge-admin">{{ admin_user.role }}</span></p>
+    <p><strong>Tier:</strong> <span class="badge badge-{{ admin_user.tier }}">{{ admin_user.tier }}</span></p>
+</div>
+{% endblock %}
