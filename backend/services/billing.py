@@ -1,15 +1,14 @@
 """
-Stripe Billing API implementation for Suna on top of Basejump. ONLY HAS SUPPOT FOR USER ACCOUNTS – no team accounts. As we are using the user_id as account_id as is the case with personal accounts. In personal accounts, the account_id equals the user_id. In team accounts, the account_id is unique.
-
-stripe listen --forward-to localhost:8000/api/billing/webhook
+Local Billing Service for Self-Hosted Suna.
+Replaces Stripe billing with local user management, usage tracking, and credit system.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request
-from typing import Optional, Dict, Tuple
-import stripe
+from typing import Optional, Dict, Tuple, List
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
+from uuid import UUID, uuid4
 
-from supabase import Client as SupabaseClient
 from utils.cache import Cache
 from utils.logger import logger
 from utils.config import config, EnvMode
@@ -18,27 +17,25 @@ from utils.auth_utils import get_current_user_id_from_jwt
 from pydantic import BaseModel
 from utils.constants import MODEL_ACCESS_TIERS, MODEL_NAME_ALIASES, HARDCODED_MODEL_PRICES
 from litellm.cost_calculator import cost_per_token
+from database.connection import get_db_session
+from database.models import UsageLog, User, UserTier
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 import time
 
-# Initialize Stripe
-stripe.api_key = config.STRIPE_SECRET_KEY
-
-# Token price multiplier
+# Token price multiplier for local credit calculation
 TOKEN_PRICE_MULTIPLIER = 1.5
 
 # Minimum credits required to allow a new request when over subscription limit
 CREDIT_MIN_START_DOLLARS = 0.20
 
-# Credit packages with Stripe price IDs
+# Local credit packages (in dollars)
 CREDIT_PACKAGES = {
-    'credits_10': {'amount': 10, 'price': 10, 'stripe_price_id': config.STRIPE_CREDITS_10_PRICE_ID},
-    'credits_25': {'amount': 25, 'price': 25, 'stripe_price_id': config.STRIPE_CREDITS_25_PRICE_ID},
-    # Uncomment these when you create the additional price IDs in Stripe:
-    # 'credits_50': {'amount': 50, 'price': 50, 'stripe_price_id': config.STRIPE_CREDITS_50_PRICE_ID},
-    # 'credits_100': {'amount': 100, 'price': 100, 'stripe_price_id': config.STRIPE_CREDITS_100_PRICE_ID},
-    # 'credits_250': {'amount': 250, 'price': 250, 'stripe_price_id': config.STRIPE_CREDITS_250_PRICE_ID},
-    # 'credits_500': {'amount': 500, 'price': 500, 'stripe_price_id': config.STRIPE_CREDITS_500_PRICE_ID},
-    # 'credits_1000': {'amount': 1000, 'price': 1000, 'stripe_price_id': config.STRIPE_CREDITS_1000_PRICE_ID},
+    'credits_5': {'amount': 5, 'price': 5, 'description': '5 Credits'},
+    'credits_10': {'amount': 10, 'price': 10, 'description': '10 Credits'},
+    'credits_25': {'amount': 25, 'price': 25, 'description': '25 Credits'},
+    'credits_50': {'amount': 50, 'price': 50, 'description': '50 Credits'},
+    'credits_100': {'amount': 100, 'price': 100, 'description': '100 Credits'},
 }
 
 router = APIRouter(prefix="/billing", tags=["billing"])

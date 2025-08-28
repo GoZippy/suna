@@ -1,0 +1,33 @@
+services:
+  agent-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: suna/agent-sandbox:latest
+    container_name: suna-agent-sandbox
+    ports:
+    - 5917:5901
+    - 6017:6080
+    - 8117:8080
+    - 3017:3000
+    - 8017:8000
+    volumes:
+    - sandbox_workspace:/workspace
+    - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+    - DISPLAY=:1
+    - VNC_PASSWORD=suna123
+    security_opt:
+    - seccomp:unconfined
+    cap_add:
+    - SYS_ADMIN
+    shm_size: 2gb
+    restart: unless-stopped
+    networks:
+    - sandbox-network
+networks:
+  sandbox-network:
+    driver: bridge
+volumes:
+  sandbox_workspace:
+    driver: local

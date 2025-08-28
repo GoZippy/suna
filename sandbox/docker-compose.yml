@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  agent-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: suna/agent-sandbox:latest
+    container_name: suna-agent-sandbox
+    ports:
+      - "5917:5901"  # VNC server
+      - "6017:6080"  # noVNC web interface
+      - "8117:8080"  # Development server port
+      - "3017:3000"  # React/Next.js default port
+      - "8017:8000"  # FastAPI/Django default port
+    volumes:
+      - sandbox_workspace:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock  # Allow Docker-in-Docker if needed
+    environment:
+      - DISPLAY=:1
+      - VNC_PASSWORD=suna123
+    security_opt:
+      - seccomp:unconfined  # Required for some browser automation
+    cap_add:
+      - SYS_ADMIN  # Required for browser sandboxing
+    shm_size: 2gb  # Increase shared memory for browsers
+    restart: unless-stopped
+    networks:
+      - sandbox-network
+
+networks:
+  sandbox-network:
+    driver: bridge
+
+volumes:
+  sandbox_workspace:
+    driver: local

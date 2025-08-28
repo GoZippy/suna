@@ -1,0 +1,36 @@
+# Ignore files that shouldn't be included in Docker build context
+
+# Documentation
+README.md
+*.md
+
+# Scripts
+build.sh
+build.ps1
+test-container.py
+container_manager.py
+
+# Docker files
+docker-compose.yml
+.dockerignore
+
+# Version control
+.git
+.gitignore
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

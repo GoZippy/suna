@@ -23,7 +23,7 @@ from agent import api as agent_api
 
 from sandbox import api as sandbox_api
 from services import local_sandbox_api
-from services import billing as billing_api
+from services import billing_local as billing_api
 from flags import api as feature_flags_api
 from services import transcription as transcription_api
 import sys

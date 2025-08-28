@@ -1,0 +1,30 @@
+# Rate limiting configuration for SearXNG
+
+[botdetection.ip_limit]
+# Filter IPs in local networks
+filter_link_local = true
+
+# Enable link token for additional protection
+link_token = true
+
+# Maximum requests per minute per IP
+window = 60
+max_requests = 60
+
+# Burst allowance
+burst_max_requests = 10
+burst_window = 10
+
+[botdetection.ip_lists]
+# Block known bot networks
+block_ip = [
+    "127.0.0.0/8",
+    "::1/128"
+]
+
+# Allow local development
+pass_ip = [
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "10.0.0.0/8"
+]

@@ -35,6 +35,7 @@ class User(Base, TimestampMixin):
     password_reset_token: Mapped[Optional[str]] = mapped_column(String(255))
     password_reset_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    credit_balance: Mapped[float] = mapped_column(DECIMAL(10, 2), default=0.00)
     metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
     
     # Relationships
@@ -227,6 +228,31 @@ class UsageLog(Base):
         Index('idx_usage_logs_resource_type', 'resource_type'),
         Index('idx_usage_logs_created_at', 'created_at'),
         Index('idx_usage_logs_user_created', 'user_id', 'created_at'),
+    )
+
+class CreditTransaction(Base):
+    """Credit transaction model for tracking credit purchases and usage"""
+    __tablename__ = 'credit_transactions'
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'purchase', 'usage', 'grant', 'refund'
+    amount: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    balance_before: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    balance_after: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    reference_id: Mapped[Optional[str]] = mapped_column(String(255))  # Could reference usage_log or purchase ID
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User")
+
+    __table_args__ = (
+        Index('idx_credit_transactions_user_id', 'user_id'),
+        Index('idx_credit_transactions_type', 'transaction_type'),
+        Index('idx_credit_transactions_created_at', 'created_at'),
+        Index('idx_credit_transactions_user_type', 'user_id', 'transaction_type'),
     )
 
 class ProjectCollaborator(Base):

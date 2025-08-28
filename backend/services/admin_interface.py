@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional, List
 from services.auth import AuthService, User, UserCreate, UserUpdate, UserRole, UserTier
 from services.auth_middleware import require_admin, get_auth_service
+from services.billing_local import BillingService, get_billing_service
 from utils.logger import logger
 import os
 
@@ -218,6 +219,73 @@ async def admin_delete_user(
         logger.error(f"Error deleting user: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete user")
 
+@router.get("/billing", response_class=HTMLResponse)
+async def admin_billing_dashboard(
+    request: Request,
+    period_days: int = 30,
+    admin_user: User = Depends(require_admin),
+    auth_service: AuthService = Depends(get_auth_service),
+    billing_service: BillingService = Depends(get_billing_service)
+):
+    """
+    Admin billing dashboard with usage analytics and credit management.
+    """
+    try:
+        from database.connection import get_db_session
+        from database.models import UsageLog, User
+        from sqlalchemy import func, desc
+        from datetime import datetime, timezone, timedelta
+
+        db = await get_db_session()
+
+        # Get overall usage statistics
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=period_days)
+
+        # Total usage by resource type
+        usage_by_type = db.query(
+            UsageLog.resource_type,
+            func.sum(UsageLog.amount).label('total_amount'),
+            func.sum(UsageLog.cost).label('total_cost')
+        ).filter(
+            UsageLog.created_at >= cutoff_date
+        ).group_by(UsageLog.resource_type).all()
+
+        # Top users by usage
+        top_users = db.query(
+            User.email,
+            User.tier,
+            func.sum(UsageLog.amount).label('total_usage'),
+            func.sum(UsageLog.cost).label('total_cost')
+        ).join(UsageLog).filter(
+            UsageLog.created_at >= cutoff_date
+        ).group_by(User.id, User.email, User.tier).order_by(
+            desc(func.sum(UsageLog.cost))
+        ).limit(10).all()
+
+        # Revenue statistics
+        total_revenue = sum(float(log.total_cost) for log in usage_by_type) if usage_by_type else 0
+
+        # Get all users for tier distribution
+        users = await auth_service.list_users(limit=1000)
+        tier_distribution = {}
+        for user in users:
+            tier_distribution[user.tier] = tier_distribution.get(user.tier, 0) + 1
+
+        return templates.TemplateResponse("billing_dashboard.html", {
+            "request": request,
+            "admin_user": admin_user,
+            "usage_by_type": usage_by_type,
+            "top_users": top_users,
+            "tier_distribution": tier_distribution,
+            "total_revenue": total_revenue,
+            "period_days": period_days,
+            "title": f"Billing Dashboard ({period_days} days)"
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting billing stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load billing statistics")
+
 @router.get("/stats", response_class=HTMLResponse)
 async def admin_stats(
     request: Request,
@@ -230,26 +298,26 @@ async def admin_stats(
     try:
         # Get basic user statistics
         users = await auth_service.list_users(limit=1000)  # Get all users for stats
-        
+
         stats = {
             "total_users": len(users),
             "active_users": len([u for u in users if u.is_active]),
             "users_by_role": {},
             "users_by_tier": {}
         }
-        
+
         # Calculate role distribution
         for user in users:
             stats["users_by_role"][user.role] = stats["users_by_role"].get(user.role, 0) + 1
             stats["users_by_tier"][user.tier] = stats["users_by_tier"].get(user.tier, 0) + 1
-        
+
         return templates.TemplateResponse("stats.html", {
             "request": request,
             "admin_user": admin_user,
             "stats": stats,
             "title": "System Statistics"
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to load statistics")

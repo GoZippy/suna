@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # SearXNG metasearch engine
+  searxng:
+    image: searxng/searxng:latest
+    container_name: suna_searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET_KEY=change-this-secret-key-in-production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching search results
+  redis:
+    image: redis:7-alpine
+    container_name: suna_search_redis
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Local web scraping service
+  scraping-service:
+    build:
+      context: ./scraping
+      dockerfile: Dockerfile
+    container_name: suna_scraping
+    ports:
+      - "8082:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SEARXNG_URL=http://searxng:8080
+      - MAX_CONCURRENT_REQUESTS=10
+      - REQUEST_TIMEOUT=30
+      - CACHE_TTL=3600
+    volumes:
+      - ./scraping:/app
+      - scraping_data:/app/data
+    depends_on:
+      - redis
+      - searxng
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
+    driver: local
+  scraping_data:
+    driver: local
+
+networks:
+  default:
+    name: suna_search_network

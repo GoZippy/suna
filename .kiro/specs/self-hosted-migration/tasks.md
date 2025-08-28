@@ -41,7 +41,6 @@
 
 - [x] 5. Build local container orchestration system
 
-
   - Create Docker-based sandbox manager to replace Daytona functionality
   - Implement container lifecycle management (create, start, stop, delete)
   - Build secure container isolation with resource limits and network segmentation
@@ -50,17 +49,19 @@
   - Build container health monitoring and automatic restart capabilities
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 6. Create agent sandbox container images
+- [x] 6. Create agent sandbox container images
 
   - Build base Ubuntu 22.04 container image with development tools
   - Install Python 3.11+, Node.js 20+, and common development packages
   - Configure VNC server (TigerVNC) with web-based access
   - Install browser automation tools (Playwright, Selenium)
+
   - Set up Supervisor for process management within containers
   - Create container security hardening and non-root user configuration
   - _Requirements: 3.1, 3.2, 3.4_
 
-- [ ] 7. Implement local search and web scraping services
+- [x] 7. Implement local search and web scraping services
+
 
   - Deploy SearXNG as local metasearch engine for web search functionality
   - Create web scraping service using Playwright and BeautifulSoup
