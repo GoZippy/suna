@@ -228,3 +228,39 @@
   - Verify security measures and access controls function correctly
   - Create final deployment packages and release artifacts
   - _Requirements: All requirements final validation_
+
+---
+
+## Zippy Suna vs Kortix “core” Suna (mission)
+
+**Kortix upstream** optimizes for their **hosted SaaS**: Supabase, Stripe / RevenueCat-style billing, cloud sandboxes (e.g. Daytona), Composio/MCP orchestration, analytics, and ops features tied to accounts they can meter and bill.
+
+**Zippy Suna** targets **self-sovereign deployment**: **your** Postgres (+ pgvector), **local JWT auth** (no Supabase lock-in), **local or S3-compatible storage**, **Docker-based sandboxes**, **tier/credit limits you control** (no proprietary paywall backend), and **optional** local LLM / search — so the product is not dependent on Kortix’s metered services or their revenue stack.
+
+---
+
+## Upstream import rubric (only what makes Zippy better)
+
+**Prefer importing (review each commit / path):**
+
+- Agent runtime, tool calling, thread/message handling, prompts, sandbox safety fixes **that are not tied to cloud-only APIs**
+- Frontend UX fixes (chat, canvas, attachments, accessibility) **where they do not assume Stripe/RevCat/Supabase-only flows**
+- Backend bugfixes (Redis, workers, WebSockets) **without** pulling in hosted billing or Composio account plumbing
+- Performance, security hardening, test improvements with **clear** benefit for self-hosted
+
+**Do not merge wholesale:**
+
+- Stripe / RevenueCat / subscription / “buy credits” cloud flows
+- Supabase-specific or hosted-only auth/billing surfaces
+- Composio/GitHub integration and other **account-mapped** cloud integrations unless explicitly adapted for local credentials
+- Kubernetes/EKS/CI that belongs to Kortix infra, not your Proxmox/compose stack
+
+**Mechanical blocker:** current `main` moved much of the backend under `backend/core/`. Zippy changes still live under the older layout. The first integration step is **port Zippy modules into the new tree** (or resolve rename conflicts once), **then** cherry-pick or merge **by subsystem** (e.g. `backend/core/agentpress`, `frontend/src` chat thread) with the rubric above.
+
+- [ ] 24. Selective import from Kortix `main` onto Zippy
+
+  - [ ] Map Zippy backend/services to `backend/core/` layout; keep local billing and remove cloud billing at boundaries
+  - [ ] Merge or cherry-pick upstream subsystems one at a time (agent/thread/sandbox first), skipping billing/Stripe/RevCat paths
+  - [ ] Re-apply local compose, env, and admin routes after each merge chunk
+  - [ ] Run smoke tests (API + UI auth + one agent thread) on self-hosted compose
+  - _Requirements: mission alignment — no mandatory third-party metered core_
