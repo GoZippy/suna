@@ -259,6 +259,8 @@
 
 - [ ] 24. Selective import from Kortix `main` onto Zippy
 
+  - [x] Vendor `backend/core` + `backend/auth` from upstream `main` (reference tree; not wired into `api.py` yet)
+  - [x] Restore `services/billing.py` as self-hosted façade (no Stripe; stable imports for agent/thread/triggers)
   - [ ] Map Zippy backend/services to `backend/core/` layout; keep local billing and remove cloud billing at boundaries
   - [ ] Merge or cherry-pick upstream subsystems one at a time (agent/thread/sandbox first), skipping billing/Stripe/RevCat paths
   - [ ] Re-apply local compose, env, and admin routes after each merge chunk
