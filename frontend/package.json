@@ -1,5 +1,5 @@
 {
-  "name": "Kortix",
+  "name": "zippy-suna",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -79,6 +79,7 @@
     "json5": "^2.2.3",
     "jsonrepair": "^3.12.0",
     "jszip": "^3.10.1",
+    "jwt-decode": "^4.0.0",
     "libphonenumber-js": "^1.12.10",
     "lucide-react": "^0.479.0",
     "marked": "^15.0.7",

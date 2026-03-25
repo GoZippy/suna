@@ -29,7 +29,8 @@ import { useSubscriptionData } from '@/contexts/SubscriptionContext';
 import { isLocalMode } from '@/lib/config';
 import { BillingModal } from '@/components/billing/billing-modal';
 import { useRouter } from 'next/navigation';
-import posthog from 'posthog-js';
+// PostHog analytics disabled for self-hosted mode
+// import posthog from 'posthog-js';
 
 export interface ChatInputHandles {
   getPendingFiles: () => File[];
@@ -142,6 +143,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
     const [showSnackbar, setShowSnackbar] = useState(defaultShowSnackbar);
     const [userDismissedUsage, setUserDismissedUsage] = useState(false);
     const [billingModalOpen, setBillingModalOpen] = useState(false);
+    const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
 
     const {
       selectedModel,
@@ -189,6 +191,25 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
         setShowSnackbar(false);
       }
     }, [subscriptionData, showSnackbar, defaultShowSnackbar, shouldShowUsage, subscriptionStatus, showToLowCreditUsers, userDismissedUsage]);
+
+    // Check Ollama status in local mode
+    useEffect(() => {
+      if (isLocalMode()) {
+        const checkOllamaStatus = async () => {
+          try {
+            const response = await fetch('/api/local-ai/health');
+            const data = await response.json();
+            setOllamaStatus(data.services?.ollama?.status === 'healthy' ? 'available' : 'unavailable');
+          } catch (error) {
+            setOllamaStatus('unavailable');
+          }
+        };
+
+        checkOllamaStatus();
+        const interval = setInterval(checkOllamaStatus, 30000); // Check every 30 seconds
+        return () => clearInterval(interval);
+      }
+    }, []);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -246,7 +267,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
         thinkingEnabled = true;
       }
 
-      posthog.capture("task_prompt_submitted", { message });
+      // PostHog tracking disabled for self-hosted mode
+      // posthog.capture("task_prompt_submitted", { message });
 
       onSubmit(message, {
         agent_id: selectedAgentId,
@@ -346,12 +368,29 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
             isVisible={showToolPreview || !!showSnackbar}
           />
 
+          {/* Local mode indicator */}
+          {isLocalMode() && (
+            <div className={`absolute right-3 z-50 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+              ollamaStatus === 'available'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                : ollamaStatus === 'checking'
+                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+            } ${showToolPreview || !!showSnackbar ? '-top-12' : '-top-5'}`}>
+              <div className={`w-2 h-2 rounded-full ${
+                ollamaStatus === 'available' ? 'bg-green-500' :
+                ollamaStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+              }`} />
+              Local Mode
+            </div>
+          )}
+
           {/* Scroll to bottom button */}
           {showScrollToBottomIndicator && onScrollToBottom && (
             <button
               onClick={onScrollToBottom}
               className={`absolute cursor-pointer right-3 z-50 w-8 h-8 rounded-full bg-card border border-border transition-all duration-200 hover:scale-105 flex items-center justify-center ${showToolPreview || !!showSnackbar ? '-top-12' : '-top-5'
-                }`}
+                } ${isLocalMode() ? 'right-32' : ''}`}
               title="Scroll to bottom"
             >
               <ArrowDown className="w-4 h-4 text-muted-foreground" />

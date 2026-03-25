@@ -7,15 +7,39 @@ import React, {
   useEffect,
   ReactNode,
 } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
-import { SupabaseClient } from '@supabase/supabase-js';
-import { checkAndInstallSunaAgent } from '@/lib/utils/install-suna-agent';
+
+// Mock types for local-only operation
+interface LocalUser {
+  id: string;
+  email: string;
+  user_metadata: Record<string, any>;
+  app_metadata: Record<string, any>;
+  aud: string;
+  created_at: string;
+}
+
+interface LocalSession {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  user: LocalUser;
+}
+
+interface LocalAuthClient {
+  auth: {
+    getSession: () => Promise<{ data: { session: LocalSession | null }; error: null }>;
+    signOut: () => Promise<{ error: null }>;
+  };
+  getSession: () => Promise<LocalSession | null>;
+  signOut: () => Promise<void>;
+  onAuthStateChange: (callback: (event: string, session: LocalSession | null) => void) => void;
+}
 
 type AuthContextType = {
-  supabase: SupabaseClient;
-  session: Session | null;
-  user: User | null;
+  supabase: LocalAuthClient;
+  session: LocalSession | null;
+  user: LocalUser | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
 };
@@ -23,58 +47,54 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const supabase = createClient();
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<LocalSession | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Mock authentication client for local-only operation
+  const supabase: LocalAuthClient = {
+    auth: {
+      getSession: async () => ({ data: { session }, error: null }),
+      signOut: async () => ({ error: null }),
+    },
+    getSession: async () => session,
+    signOut: async () => {
+      setSession(null);
+      setUser(null);
+    },
+    onAuthStateChange: (callback) => {
+      // Mock auth state change - no real implementation needed
+      console.log('Auth state change listener registered (mock)');
+    },
+  };
+
   useEffect(() => {
-    const getInitialSession = async () => {
-      try {
-        const {
-          data: { session: currentSession },
-        } = await supabase.auth.getSession();
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-      } catch (error) {
-      } finally {
-        setIsLoading(false);
-      }
+    // Mock authentication for local-only operation
+    const mockUser: LocalUser = {
+      id: 'local-user',
+      email: 'local@localhost',
+      user_metadata: {},
+      app_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
     };
 
-    getInitialSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (isLoading) setIsLoading(false);
-        switch (event) {
-          case 'SIGNED_IN':
-            if (newSession?.user) {
-              await checkAndInstallSunaAgent(newSession.user.id, newSession.user.created_at);
-            }
-            break;
-          case 'SIGNED_OUT':
-            break;
-          case 'TOKEN_REFRESHED':
-            break;
-          case 'MFA_CHALLENGE_VERIFIED':
-            break;
-          default:
-        }
-      },
-    );
-
-    return () => {
-      authListener?.subscription.unsubscribe();
+    const mockSession: LocalSession = {
+      access_token: 'mock-token',
+      refresh_token: 'mock-refresh',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: mockUser,
     };
-  }, [supabase]); // Removed isLoading from dependencies to prevent infinite loops
+
+    setSession(mockSession);
+    setUser(mockUser);
+    setIsLoading(false);
+  }, []);
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await supabase.signOut();
     } catch (error) {
       console.error('❌ Error signing out:', error);
     }

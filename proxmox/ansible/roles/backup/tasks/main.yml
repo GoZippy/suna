@@ -1,0 +1,313 @@
+---
+- name: Install backup dependencies
+  apt:
+    name:
+      - rsync
+      - tar
+      - gzip
+      - bzip2
+      - lz4
+      - pigz
+      - pv
+      - rclone
+      - s3cmd
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Create backup directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  loop:
+    - "{{ suna_data }}/backups"
+    - "{{ suna_data }}/backups/database"
+    - "{{ suna_data }}/backups/files"
+    - "{{ suna_data }}/backups/configs"
+    - "{{ suna_data }}/backups/logs"
+    - "{{ suna_data }}/backups/monitoring"
+    - "{{ suna_data }}/backups/temp"
+    - "{{ suna_data }}/backups/archive"
+
+- name: Configure backup retention
+  template:
+    src: backup-retention.conf.j2
+    dest: "{{ suna_home }}/config/backup-retention.conf"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+
+- name: Create database backup script
+  template:
+    src: backup-database.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-database.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['database']
+
+- name: Create file backup script
+  template:
+    src: backup-files.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-files.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['storage']
+
+- name: Create configuration backup script
+  template:
+    src: backup-configs.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-configs.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create monitoring backup script
+  template:
+    src: backup-monitoring.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-monitoring.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Create full backup script
+  template:
+    src: backup-full.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-full.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup verification script
+  template:
+    src: backup-verify.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-verify.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup restore script
+  template:
+    src: backup-restore.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-restore.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup cleanup script
+  template:
+    src: backup-cleanup.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-cleanup.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup cron jobs
+  cron:
+    name: "{{ item.name }}"
+    hour: "{{ item.hour }}"
+    minute: "{{ item.minute }}"
+    job: "{{ item.job }}"
+    user: "{{ suna_user }}"
+  loop:
+    - name: "Database backup"
+      hour: "2"
+      minute: "0"
+      job: "{{ suna_home }}/scripts/backup-database.sh"
+    - name: "File backup"
+      hour: "3"
+      minute: "0"
+      job: "{{ suna_home }}/scripts/backup-files.sh"
+    - name: "Configuration backup"
+      hour: "4"
+      minute: "0"
+      job: "{{ suna_home }}/scripts/backup-configs.sh"
+    - name: "Full backup"
+      hour: "1"
+      minute: "0"
+      job: "{{ suna_home }}/scripts/backup-full.sh"
+      when: inventory_hostname in groups['management']
+    - name: "Backup cleanup"
+      hour: "5"
+      minute: "0"
+      job: "{{ suna_home }}/scripts/backup-cleanup.sh"
+
+- name: Configure backup monitoring
+  template:
+    src: backup-monitor.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-monitor.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup health check script
+  template:
+    src: backup-healthcheck.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-healthcheck.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup log rotation
+  template:
+    src: backup-logrotate.j2
+    dest: /etc/logrotate.d/suna-backup
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create backup configuration file
+  template:
+    src: backup-config.yml.j2
+    dest: "{{ suna_home }}/config/backup-config.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+
+- name: Configure backup encryption
+  template:
+    src: backup-encrypt.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-encrypt.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup compression script
+  template:
+    src: backup-compress.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-compress.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup scheduling
+  template:
+    src: backup-schedule.yml.j2
+    dest: "{{ suna_home }}/config/backup-schedule.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+
+- name: Create backup notification script
+  template:
+    src: backup-notify.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-notify.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup testing
+  template:
+    src: backup-test.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-test.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create disaster recovery script
+  template:
+    src: disaster-recovery.sh.j2
+    dest: "{{ suna_home }}/scripts/disaster-recovery.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup metrics collection
+  template:
+    src: backup-metrics.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-metrics.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup documentation
+  template:
+    src: backup-readme.md.j2
+    dest: "{{ suna_home }}/docs/backup-readme.md"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+
+- name: Configure backup validation
+  template:
+    src: backup-validate.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-validate.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup reporting script
+  template:
+    src: backup-report.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-report.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup encryption keys
+  template:
+    src: backup-keys.conf.j2
+    dest: "{{ suna_home }}/config/backup-keys.conf"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0600'
+
+- name: Create backup performance monitoring
+  template:
+    src: backup-performance.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-performance.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup error handling
+  template:
+    src: backup-error-handler.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-error-handler.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create backup rollback script
+  template:
+    src: backup-rollback.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-rollback.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup testing cron job
+  cron:
+    name: "Backup testing"
+    hour: "6"
+    minute: "0"
+    job: "{{ suna_home }}/scripts/backup-test.sh"
+    user: "{{ suna_user }}"
+    when: inventory_hostname in groups['management']
+
+- name: Create backup status monitoring
+  template:
+    src: backup-status.sh.j2
+    dest: "{{ suna_home }}/scripts/backup-status.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure backup alerting
+  template:
+    src: backup-alerts.yml.j2
+    dest: "{{ suna_home }}/config/backup-alerts.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+
+
+
+
+
+
+

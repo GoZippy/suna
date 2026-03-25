@@ -1,0 +1,79 @@
+---
+all:
+  children:
+    management:
+      hosts: {}
+      vars:
+        ansible_user: suna
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    application:
+      hosts: {}
+      vars:
+        ansible_user: suna
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    database:
+      hosts: {}
+      vars:
+        ansible_user: suna
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    storage:
+      hosts: {}
+      vars:
+        ansible_user: suna
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    load_balancer:
+      hosts: {}
+      vars:
+        ansible_user: suna
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    redis:
+      hosts: {}
+      vars:
+        ansible_user: root
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    monitoring:
+      hosts: {}
+      vars:
+        ansible_user: root
+        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        ansible_python_interpreter: /usr/bin/python3
+    
+    # Group all VMs together
+    vms:
+      children:
+        - management
+        - application
+        - database
+        - storage
+        - load_balancer
+    
+    # Group all containers together
+    containers:
+      children:
+        - redis
+        - monitoring
+    
+    # Group all infrastructure together
+    infrastructure:
+      children:
+        - vms
+        - containers
+
+
+
+
+
+
+

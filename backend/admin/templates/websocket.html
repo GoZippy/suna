@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Management - Suna Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .tab-button.active { 
+            background-color: #3b82f6; 
+            color: white; 
+        }
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-connected { background-color: #10b981; }
+        .status-disconnected { background-color: #ef4444; }
+        .status-expired { background-color: #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-4">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold text-gray-900">WebSocket Management</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700">Dashboard</a>
+                        <a href="/admin/users" class="text-gray-500 hover:text-gray-700">Users</a>
+                        <a href="/admin/local-ai" class="text-gray-500 hover:text-gray-700">Local AI</a>
+                        <a href="/admin/local-email" class="text-gray-500 hover:text-gray-700">Email</a>
+                        <a href="/admin/background-jobs" class="text-gray-500 hover:text-gray-700">Jobs</a>
+                        <a href="/admin/websocket" class="text-blue-600 font-medium">WebSocket</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Status Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Active Connections</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="active-connections">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Connected Users</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="connected-users">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Thread Subscriptions</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="thread-subscriptions">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Agent Subscriptions</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="agent-subscriptions">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8 px-6">
+                        <button class="tab-button active py-4 px-1 border-b-2 border-blue-500 font-medium text-sm" onclick="showTab('overview')">
+                            Overview
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('connections')">
+                            Connections
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('subscriptions')">
+                            Subscriptions
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('settings')">
+                            Settings
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overview" class="tab-content active p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- WebSocket Stats -->
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">WebSocket Statistics</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Total Connections:</span>
+                                    <span class="font-medium" id="total-connections">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Active Connections:</span>
+                                    <span class="font-medium" id="active-connections-overview">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Disconnected:</span>
+                                    <span class="font-medium" id="disconnected-connections">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Expired:</span>
+                                    <span class="font-medium" id="expired-connections">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Subscription Stats -->
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Subscription Statistics</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Thread Subscriptions:</span>
+                                    <span class="font-medium" id="thread-subs-count">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Project Subscriptions:</span>
+                                    <span class="font-medium" id="project-subs-count">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Agent Subscriptions:</span>
+                                    <span class="font-medium" id="agent-subs-count">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Total Subscriptions:</span>
+                                    <span class="font-medium" id="total-subscriptions">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="mt-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+                        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-medium text-gray-900">Connection Events</span>
+                                    <button onclick="refreshActivity()" class="text-sm text-blue-600 hover:text-blue-800">Refresh</button>
+                                </div>
+                            </div>
+                            <div class="divide-y divide-gray-200" id="recent-activity">
+                                <!-- Activity items will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connections Tab -->
+                <div id="connections" class="tab-content p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">Active Connections</h3>
+                        <div class="flex space-x-2">
+                            <button onclick="refreshConnections()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                Refresh
+                            </button>
+                            <button onclick="disconnectAll()" class="px-3 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">
+                                Disconnect All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connected</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="connections-table">
+                                    <!-- Connection rows will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subscriptions Tab -->
+                <div id="subscriptions" class="tab-content p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">Active Subscriptions</h3>
+                        <button onclick="refreshSubscriptions()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Thread Subscriptions -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Thread Subscriptions</h4>
+                            <div class="space-y-2" id="thread-subscriptions-list">
+                                <!-- Thread subscriptions will be loaded here -->
+                            </div>
+                        </div>
+
+                        <!-- Project Subscriptions -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Project Subscriptions</h4>
+                            <div class="space-y-2" id="project-subscriptions-list">
+                                <!-- Project subscriptions will be loaded here -->
+                            </div>
+                        </div>
+
+                        <!-- Agent Subscriptions -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">Agent Subscriptions</h4>
+                            <div class="space-y-2" id="agent-subscriptions-list">
+                                <!-- Agent subscriptions will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings" class="tab-content p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- WebSocket Configuration -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">WebSocket Configuration</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Max Connections</label>
+                                    <input type="number" id="max-connections" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="1000">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Max Connections Per User</label>
+                                    <input type="number" id="max-connections-per-user" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="5">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Ping Interval (seconds)</label>
+                                    <input type="number" id="ping-interval" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="30">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Connection Timeout (seconds)</label>
+                                    <input type="number" id="connection-timeout" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="300">
+                                </div>
+                                <button onclick="saveSettings()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                    Save Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Feature Flags -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Feature Flags</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-auth" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-auth" class="ml-2 block text-sm text-gray-900">Enable Authentication</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-persistence" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-persistence" class="ml-2 block text-sm text-gray-900">Enable Persistence</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-broadcast" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-broadcast" class="ml-2 block text-sm text-gray-900">Enable Broadcast</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-live-chat" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-live-chat" class="ml-2 block text-sm text-gray-900">Enable Live Chat</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-file-notifications" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-file-notifications" class="ml-2 block text-sm text-gray-900">Enable File Notifications</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-agent-updates" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-agent-updates" class="ml-2 block text-sm text-gray-900">Enable Agent Updates</label>
+                                </div>
+                                <button onclick="saveFeatureFlags()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                    Save Feature Flags
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+                button.classList.remove('border-blue-500');
+                button.classList.add('border-transparent');
+                button.classList.add('text-gray-500');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to selected tab button
+            event.target.classList.add('active');
+            event.target.classList.add('border-blue-500');
+            event.target.classList.remove('border-transparent');
+            event.target.classList.remove('text-gray-500');
+        }
+
+        // Load WebSocket statistics
+        async function loadWebSocketStats() {
+            try {
+                const response = await fetch('/api/websocket/stats');
+                const stats = await response.json();
+                
+                document.getElementById('active-connections').textContent = stats.total_connections || 0;
+                document.getElementById('active-connections-overview').textContent = stats.total_connections || 0;
+                document.getElementById('thread-subscriptions').textContent = stats.thread_subscriptions || 0;
+                document.getElementById('thread-subs-count').textContent = stats.thread_subscriptions || 0;
+                document.getElementById('project-subscriptions').textContent = stats.project_subscriptions || 0;
+                document.getElementById('project-subs-count').textContent = stats.project_subscriptions || 0;
+                document.getElementById('agent-subscriptions').textContent = stats.agent_subscriptions || 0;
+                document.getElementById('agent-subs-count').textContent = stats.agent_subscriptions || 0;
+                
+                // Calculate totals
+                const totalSubs = (stats.thread_subscriptions || 0) + (stats.project_subscriptions || 0) + (stats.agent_subscriptions || 0);
+                document.getElementById('total-subscriptions').textContent = totalSubs;
+                
+            } catch (error) {
+                console.error('Error loading WebSocket stats:', error);
+            }
+        }
+
+        // Load connections
+        async function loadConnections() {
+            try {
+                const response = await fetch('/api/websocket/connections');
+                const connections = await response.json();
+                
+                const tbody = document.getElementById('connections-table');
+                tbody.innerHTML = '';
+                
+                connections.forEach(conn => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${conn.connection_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${conn.user_id || 'Anonymous'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="status-indicator status-${conn.status}"></span>
+                            <span class="text-sm text-gray-900">${conn.status}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(conn.connected_at).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(conn.last_activity).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="disconnectConnection('${conn.connection_id}')" class="text-red-600 hover:text-red-900">Disconnect</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                console.error('Error loading connections:', error);
+            }
+        }
+
+        // Load subscriptions
+        async function loadSubscriptions() {
+            try {
+                const response = await fetch('/api/websocket/subscriptions');
+                const subscriptions = await response.json();
+                
+                // Load thread subscriptions
+                const threadList = document.getElementById('thread-subscriptions-list');
+                threadList.innerHTML = '';
+                subscriptions.threads?.forEach(sub => {
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center p-2 bg-gray-50 rounded';
+                    item.innerHTML = `
+                        <span class="text-sm text-gray-900">${sub.thread_id}</span>
+                        <span class="text-xs text-gray-500">${sub.connections} connections</span>
+                    `;
+                    threadList.appendChild(item);
+                });
+                
+                // Load project subscriptions
+                const projectList = document.getElementById('project-subscriptions-list');
+                projectList.innerHTML = '';
+                subscriptions.projects?.forEach(sub => {
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center p-2 bg-gray-50 rounded';
+                    item.innerHTML = `
+                        <span class="text-sm text-gray-900">${sub.project_id}</span>
+                        <span class="text-xs text-gray-500">${sub.connections} connections</span>
+                    `;
+                    projectList.appendChild(item);
+                });
+                
+                // Load agent subscriptions
+                const agentList = document.getElementById('agent-subscriptions-list');
+                agentList.innerHTML = '';
+                subscriptions.agents?.forEach(sub => {
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center p-2 bg-gray-50 rounded';
+                    item.innerHTML = `
+                        <span class="text-sm text-gray-900">${sub.agent_id}</span>
+                        <span class="text-xs text-gray-500">${sub.connections} connections</span>
+                    `;
+                    agentList.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error loading subscriptions:', error);
+            }
+        }
+
+        // Load recent activity
+        async function loadRecentActivity() {
+            try {
+                const response = await fetch('/api/websocket/activity');
+                const activity = await response.json();
+                
+                const container = document.getElementById('recent-activity');
+                container.innerHTML = '';
+                
+                activity.forEach(event => {
+                    const item = document.createElement('div');
+                    item.className = 'px-6 py-4';
+                    item.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">${event.type}</p>
+                                <p class="text-sm text-gray-500">${event.description}</p>
+                            </div>
+                            <span class="text-xs text-gray-400">${new Date(event.timestamp).toLocaleString()}</span>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+            }
+        }
+
+        // Disconnect a specific connection
+        async function disconnectConnection(connectionId) {
+            if (!confirm('Are you sure you want to disconnect this connection?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/websocket/connections/${connectionId}/disconnect`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    loadConnections();
+                    loadWebSocketStats();
+                } else {
+                    alert('Failed to disconnect connection');
+                }
+            } catch (error) {
+                console.error('Error disconnecting connection:', error);
+                alert('Error disconnecting connection');
+            }
+        }
+
+        // Disconnect all connections
+        async function disconnectAll() {
+            if (!confirm('Are you sure you want to disconnect all connections?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/websocket/connections/disconnect-all', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    loadConnections();
+                    loadWebSocketStats();
+                } else {
+                    alert('Failed to disconnect all connections');
+                }
+            } catch (error) {
+                console.error('Error disconnecting all connections:', error);
+                alert('Error disconnecting all connections');
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            const settings = {
+                max_connections: parseInt(document.getElementById('max-connections').value),
+                max_connections_per_user: parseInt(document.getElementById('max-connections-per-user').value),
+                ping_interval: parseInt(document.getElementById('ping-interval').value),
+                connection_timeout: parseInt(document.getElementById('connection-timeout').value)
+            };
+            
+            try {
+                const response = await fetch('/api/websocket/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (response.ok) {
+                    alert('Settings saved successfully');
+                } else {
+                    alert('Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings');
+            }
+        }
+
+        // Save feature flags
+        async function saveFeatureFlags() {
+            const flags = {
+                enable_authentication: document.getElementById('enable-auth').checked,
+                enable_persistence: document.getElementById('enable-persistence').checked,
+                enable_broadcast: document.getElementById('enable-broadcast').checked,
+                enable_live_chat: document.getElementById('enable-live-chat').checked,
+                enable_file_notifications: document.getElementById('enable-file-notifications').checked,
+                enable_agent_updates: document.getElementById('enable-agent-updates').checked
+            };
+            
+            try {
+                const response = await fetch('/api/websocket/feature-flags', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(flags)
+                });
+                
+                if (response.ok) {
+                    alert('Feature flags saved successfully');
+                } else {
+                    alert('Failed to save feature flags');
+                }
+            } catch (error) {
+                console.error('Error saving feature flags:', error);
+                alert('Error saving feature flags');
+            }
+        }
+
+        // Refresh functions
+        function refreshConnections() {
+            loadConnections();
+        }
+
+        function refreshSubscriptions() {
+            loadSubscriptions();
+        }
+
+        function refreshActivity() {
+            loadRecentActivity();
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadWebSocketStats();
+            loadConnections();
+            loadSubscriptions();
+            loadRecentActivity();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadWebSocketStats();
+                if (document.getElementById('connections').classList.contains('active')) {
+                    loadConnections();
+                }
+                if (document.getElementById('subscriptions').classList.contains('active')) {
+                    loadSubscriptions();
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

@@ -1,9 +1,12 @@
-FROM ghcr.io/astral-sh/uv:python3.11-alpine
+FROM python:3.11-slim
 
 ENV ENV_MODE production
 WORKDIR /app
 
-RUN apk add --no-cache curl git
+RUN apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install uv
 
 # Install Python dependencies
 COPY pyproject.toml uv.lock ./

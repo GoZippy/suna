@@ -347,3 +347,4 @@ If migrating from Supabase/Stripe:
 ---
 
 This self-hosted deployment provides all the functionality of the cloud version while giving you complete control over your data and infrastructure.
+

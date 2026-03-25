@@ -6,6 +6,7 @@ from jwt.exceptions import PyJWTError
 from utils.logger import structlog
 from utils.config import config
 import os
+import secrets
 from services.supabase import DBConnection
 from services import redis
 
@@ -149,7 +150,9 @@ async def get_current_user_id_from_jwt(request: Request) -> str:
     token = auth_header.split(' ')[1]
     
     try:
-        payload = jwt.decode(token, options={"verify_signature": False})
+        # Use the same JWT secret key as our local auth system
+        jwt_secret = config.JWT_SECRET_KEY or secrets.token_urlsafe(32)
+        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
         user_id = payload.get('sub')
         
         if not user_id:

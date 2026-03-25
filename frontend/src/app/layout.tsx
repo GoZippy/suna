@@ -5,11 +5,12 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from '@/components/ui/sonner';
-import { Analytics } from '@vercel/analytics/react';
-import { GoogleAnalytics } from '@next/third-parties/google';
-import { SpeedInsights } from '@vercel/speed-insights/next';
+// External analytics disabled for self-hosted mode
+// import { Analytics } from '@vercel/analytics/react';
+// import { GoogleAnalytics } from '@next/third-parties/google';
+// import { SpeedInsights } from '@vercel/speed-insights/next';
 import Script from 'next/script';
-import { PostHogIdentify } from '@/components/posthog-identify';
+// import { PostHogIdentify } from '@/components/posthog-identify';
 import '@/lib/polyfills'; // Load polyfills early
 
 const geistSans = Geist({
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     template: `%s - ${siteConfig.name}`,
   },
   description:
-    'Kortix is a fully open source AI assistant that helps you accomplish real-world tasks with ease. Through natural conversation, Kortix becomes your digital companion for research, data analysis, and everyday challenges.',
+    'Zippy Suna is a fully free and self-hosted fork of the open source Kortix Suna project. It helps you accomplish real-world tasks with ease through natural conversation, running entirely locally on your machine.',
   keywords: [
     'AI',
     'artificial intelligence',
@@ -45,13 +46,13 @@ export const metadata: Metadata = {
     'research',
     'data analysis',
   ],
-  authors: [{ name: 'Kortix Team', url: 'https://suna.so' }],
+  authors: [{ name: 'Zippy Suna Team', url: 'https://github.com/GoZippy/suna' }],
   creator:
-    'Kortix Team',
+    'Zippy Suna Team',
   publisher:
-    'Kortix Team',
+    'Zippy Suna Team',
   category: 'Technology',
-  applicationName: 'Suna',
+  applicationName: 'Zippy Suna',
   formatDetection: {
     telephone: false,
     email: false,
@@ -66,17 +67,17 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'Suna - Open Source Generalist AI Worker',
+    title: 'Zippy Suna - Self-Hosted AI Worker',
     description:
-      'Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
+      'Zippy Suna is a fully free and self-hosted fork of the open source Kortix Suna project, running entirely locally on your machine.',
     url: siteConfig.url,
-    siteName: 'Suna',
+    siteName: 'Zippy Suna',
     images: [
       {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'Suna - Open Source Generalist AI Worker',
+        alt: 'Zippy Suna - Self-Hosted AI Worker',
         type: 'image/png',
       },
     ],
@@ -85,17 +86,17 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Suna - Open Source Generalist AI Worker',
+    title: 'Zippy Suna - Self-Hosted AI Worker',
     description:
-      'Suna is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
-    creator: '@kortixai',
-    site: '@kortixai',
+      'Zippy Suna is a fully free and self-hosted fork of the open source Kortix Suna project, running entirely locally on your machine.',
+    creator: '@GoZippy',
+    site: '@GoZippy',
     images: [
       {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'Suna - Open Source Generalist AI Worker',
+        alt: 'Zippy Suna - Self-Hosted AI Worker',
       },
     ],
   },
@@ -117,21 +118,22 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Google Tag Manager */}
-        <Script id="google-tag-manager" strategy="afterInteractive">
+        {/* External tracking scripts removed for local-only operation */}
+        {/* <Script id="google-tag-manager" strategy="afterInteractive">
           {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
           new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
           j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
           })(window,document,'script','dataLayer','GTM-PCHSN4M2');`}
         </Script>
-        <Script async src="https://cdn.tolt.io/tolt.js" data-tolt={process.env.NEXT_PUBLIC_TOLT_REFERRAL_ID}></Script>
+        <Script async src="https://cdn.tolt.io/tolt.js" data-tolt={process.env.NEXT_PUBLIC_TOLT_REFERRAL_ID}></Script> */}
       </head>
 
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans bg-background`}
       >
-        <noscript>
+        {/* Google Tag Manager noscript removed for local-only operation */}
+        {/* <noscript>
           <iframe
             src="https://www.googletagmanager.com/ns.html?id=GTM-PCHSN4M2"
             height="0"
@@ -151,10 +153,11 @@ export default function RootLayout({
             {children}
             <Toaster />
           </Providers>
-          <Analytics />
-          <GoogleAnalytics gaId="G-6ETJFB3PT3" />
-          <SpeedInsights />
-          <PostHogIdentify />
+          {/* External analytics disabled for self-hosted mode */}
+          {/* <Analytics /> */}
+          {/* <GoogleAnalytics gaId="G-6ETJFB3PT3" /> */}
+          {/* <SpeedInsights /> */}
+          {/* <PostHogIdentify /> */}
         </ThemeProvider>
       </body>
     </html>

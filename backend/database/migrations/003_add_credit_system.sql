@@ -36,3 +36,4 @@ UPDATE users SET credit_balance = 50.00 WHERE tier = 'pro' AND credit_balance = 
 UPDATE users SET credit_balance = 100.00 WHERE tier = 'enterprise' AND credit_balance = 0;
 
 COMMIT;
+

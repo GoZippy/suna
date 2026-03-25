@@ -246,20 +246,33 @@ export const useModelSelection = () => {
       });
     }
     
-    // Add custom models if in local mode
-    if (isLocalMode() && customModels.length > 0) {
-      const customModelOptions = customModels.map(model => ({
-        id: model.id,
-        label: model.label || formatModelName(model.id),
-        requiresSubscription: false,
-        top: false,
-        isCustom: true,
-        priority: 30, // Low priority by default
-        lowQuality: false,
-        recommended: false
-      }));
-      
-      models = [...models, ...customModelOptions];
+    // Add local Ollama models if in local mode
+    if (isLocalMode()) {
+      const localOllamaModels = [
+        { id: 'llama3.2:3b', label: 'Llama 3.2 (3B)', requiresSubscription: false, top: true, priority: 95, recommended: true },
+        { id: 'llama3.1:8b', label: 'Llama 3.1 (8B)', requiresSubscription: false, top: true, priority: 90, recommended: false },
+        { id: 'codellama:7b', label: 'CodeLlama (7B)', requiresSubscription: false, top: false, priority: 85, recommended: false },
+        { id: 'mistral:7b', label: 'Mistral (7B)', requiresSubscription: false, top: false, priority: 80, recommended: false },
+        { id: 'phi3:3.8b', label: 'Phi-3 (3.8B)', requiresSubscription: false, top: false, priority: 75, recommended: false },
+      ];
+
+      models = [...models, ...localOllamaModels];
+
+      // Add custom models if in local mode
+      if (customModels.length > 0) {
+        const customModelOptions = customModels.map(model => ({
+          id: model.id,
+          label: model.label || formatModelName(model.id),
+          requiresSubscription: false,
+          top: false,
+          isCustom: true,
+          priority: 25, // Low priority by default
+          lowQuality: false,
+          recommended: false
+        }));
+
+        models = [...models, ...customModelOptions];
+      }
     }
     
     // Sort models consistently in one place:

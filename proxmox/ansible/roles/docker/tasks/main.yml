@@ -1,0 +1,186 @@
+---
+- name: Install Docker dependencies
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+  when: ansible_os_family == "Debian"
+
+- name: Install Docker packages
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Start and enable Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Add Suna user to docker group
+  user:
+    name: "{{ suna_user }}"
+    groups: docker
+    append: yes
+
+- name: Configure Docker daemon
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart docker
+
+- name: Create Docker networks
+  docker_network:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - suna-network
+    - suna-backend
+    - suna-frontend
+    - suna-database
+    - suna-monitoring
+
+- name: Install Docker Compose
+  get_url:
+    url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create Docker Compose configuration directory
+  file:
+    path: "{{ suna_home }}/docker-compose"
+    state: directory
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Copy Docker Compose files
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ suna_home }}/docker-compose/{{ item }}"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  loop:
+    - docker-compose.yml
+    - docker-compose.override.yml
+    - .env
+
+- name: Create Docker Compose service file
+  template:
+    src: docker-compose.service.j2
+    dest: /etc/systemd/system/docker-compose@.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable Docker Compose service
+  systemd:
+    name: "docker-compose@{{ suna_home }}/docker-compose"
+    enabled: yes
+    state: started
+
+- name: Configure Docker logging
+  template:
+    src: docker-logrotate.j2
+    dest: /etc/logrotate.d/docker
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure Docker security
+  lineinfile:
+    path: /etc/docker/daemon.json
+    regexp: '"live-restore": true'
+    line: '"live-restore": true'
+    state: present
+  notify: restart docker
+
+- name: Configure Docker storage
+  template:
+    src: storage.conf.j2
+    dest: /etc/systemd/system/docker.service.d/storage.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart docker
+
+- name: Create Docker data directory
+  file:
+    path: /var/lib/docker
+    state: directory
+    owner: root
+    group: root
+    mode: '0711'
+
+- name: Configure Docker health check
+  template:
+    src: healthcheck.sh.j2
+    dest: "{{ suna_home }}/scripts/docker-healthcheck.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Create Docker monitoring script
+  template:
+    src: docker-monitor.sh.j2
+    dest: "{{ suna_home }}/scripts/docker-monitor.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+- name: Configure Docker cleanup cron job
+  cron:
+    name: "Docker cleanup"
+    hour: "2"
+    minute: "0"
+    job: "{{ suna_home }}/scripts/docker-cleanup.sh"
+    user: "{{ suna_user }}"
+
+- name: Create Docker cleanup script
+  template:
+    src: docker-cleanup.sh.j2
+    dest: "{{ suna_home }}/scripts/docker-cleanup.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+
+
+
+
+
+
+

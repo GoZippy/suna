@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Job Management - Suna Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .status-pending { color: #f59e0b; }
+        .status-running { color: #3b82f6; }
+        .status-completed { color: #10b981; }
+        .status-failed { color: #ef4444; }
+        .status-cancelled { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen" x-data="backgroundJobsApp()">
+        <!-- Header -->
+        <header class="bg-white shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <h1 class="text-xl font-semibold text-gray-900">Background Job Management</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-sm text-gray-500">Admin: {{ admin_user.id }}</span>
+                        <a href="/admin/dashboard" class="text-blue-600 hover:text-blue-800">← Back to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <!-- Health Status -->
+            <div class="mb-6">
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg leading-6 font-medium text-gray-900">System Health</h3>
+                                <p class="mt-1 text-sm text-gray-500" x-text="healthStatus.message"></p>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="healthStatus.status === 'healthy' ? 'bg-green-100 text-green-800' : 
+                                              healthStatus.status === 'error' ? 'bg-red-100 text-red-800' : 
+                                              'bg-yellow-100 text-yellow-800'"
+                                      x-text="healthStatus.status.toUpperCase()"></span>
+                                <button @click="refreshHealth()" class="text-blue-600 hover:text-blue-800 text-sm">
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                        <button @click="activeTab = 'overview'" 
+                                :class="activeTab === 'overview' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Overview
+                        </button>
+                        <button @click="activeTab = 'queue'" 
+                                :class="activeTab === 'queue' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Job Queue
+                        </button>
+                        <button @click="activeTab = 'scheduled'" 
+                                :class="activeTab === 'scheduled' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Scheduled Jobs
+                        </button>
+                        <button @click="activeTab = 'workers'" 
+                                :class="activeTab === 'workers' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Workers
+                        </button>
+                        <button @click="activeTab = 'settings'" 
+                                :class="activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Settings
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="p-6">
+                    <!-- Overview Tab -->
+                    <div x-show="activeTab === 'overview'" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <h4 class="text-sm font-medium text-blue-800">Active Workers</h4>
+                                <p class="text-2xl font-bold text-blue-900" x-text="stats.active_workers || 0"></p>
+                            </div>
+                            <div class="bg-green-50 p-4 rounded-lg">
+                                <h4 class="text-sm font-medium text-green-800">Completed Jobs</h4>
+                                <p class="text-2xl font-bold text-green-900" x-text="stats.job_stats?.completed || 0"></p>
+                            </div>
+                            <div class="bg-yellow-50 p-4 rounded-lg">
+                                <h4 class="text-sm font-medium text-yellow-800">Pending Jobs</h4>
+                                <p class="text-2xl font-bold text-yellow-900" x-text="stats.job_stats?.pending || 0"></p>
+                            </div>
+                            <div class="bg-red-50 p-4 rounded-lg">
+                                <h4 class="text-sm font-medium text-red-800">Failed Jobs</h4>
+                                <p class="text-2xl font-bold text-red-900" x-text="stats.job_stats?.failed || 0"></p>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">Quick Actions</h4>
+                            <div class="flex space-x-4">
+                                <button @click="createTestJob()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+                                    Create Test Job
+                                </button>
+                                <button @click="cleanupOldJobs()" class="bg-gray-600 text-white px-4 py-2 rounded text-sm hover:bg-gray-700">
+                                    Cleanup Old Jobs
+                                </button>
+                                <button @click="refreshStats()" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700">
+                                    Refresh Stats
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Job Queue Tab -->
+                    <div x-show="activeTab === 'queue'" class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-900">Job Queue</h3>
+                            <div class="flex space-x-2">
+                                <select x-model="queueFilter.status" @change="loadJobQueue()" class="border border-gray-300 rounded px-3 py-1 text-sm">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="running">Running</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <select x-model="queueFilter.job_type" @change="loadJobQueue()" class="border border-gray-300 rounded px-3 py-1 text-sm">
+                                    <option value="">All Types</option>
+                                    <option value="test">Test</option>
+                                    <option value="email">Email</option>
+                                    <option value="agent">Agent</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="job in jobQueue" :key="job.id">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900" x-text="job.id.substring(0, 8)"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="job.job_type"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                      :class="'status-' + job.status"
+                                                      x-text="job.status"></span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="job.priority"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(job.scheduled_at)"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="job.worker_id || '-'"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <template x-if="job.status === 'pending'">
+                                                    <button @click="cancelJob(job.id)" class="text-red-600 hover:text-red-900">Cancel</button>
+                                                </template>
+                                                <template x-if="job.status === 'failed'">
+                                                    <button @click="retryJob(job.id)" class="text-blue-600 hover:text-blue-900">Retry</button>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Scheduled Jobs Tab -->
+                    <div x-show="activeTab === 'scheduled'" class="space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-900">Scheduled Jobs</h3>
+                            <button @click="showCreateScheduledJob = true" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+                                Create Scheduled Job
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Run</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="job in scheduledJobs" :key="job.id">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="job.name"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="job.job_type"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="job.cron_expression || job.interval_seconds + 's'"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="formatDate(job.next_run_at)"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                      :class="job.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                                      x-text="job.is_active ? 'Active' : 'Inactive'"></span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button @click="toggleScheduledJob(job.id, !job.is_active)" 
+                                                        :class="job.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
+                                                        x-text="job.is_active ? 'Disable' : 'Enable'"></button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Workers Tab -->
+                    <div x-show="activeTab === 'workers'" class="space-y-6">
+                        <h3 class="text-lg font-medium text-gray-900">Worker Nodes</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <template x-for="worker in stats.workers" :key="worker.worker_id">
+                                <div class="bg-white p-4 rounded-lg border">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h4 class="text-sm font-medium text-gray-900" x-text="worker.worker_id"></h4>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="worker.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                              x-text="worker.status"></span>
+                                    </div>
+                                    <div class="space-y-1 text-sm text-gray-600">
+                                        <p>Hostname: <span x-text="worker.hostname"></span></p>
+                                        <p>Processes: <span x-text="worker.process_count"></span></p>
+                                        <p>Threads: <span x-text="worker.thread_count"></span></p>
+                                        <p>Load: <span x-text="worker.current_load + '%'"></span></p>
+                                        <p>Uptime: <span x-text="formatUptime(worker.uptime)"></span></p>
+                                        <p>Last Heartbeat: <span x-text="formatDate(worker.last_heartbeat)"></span></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div x-show="activeTab === 'settings'" class="space-y-6">
+                        <h3 class="text-lg font-medium text-gray-900">Configuration</h3>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-4">Feature Flags</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Background Jobs</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="healthStatus.services?.background_jobs ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          x-text="healthStatus.services?.background_jobs ? 'Enabled' : 'Disabled'"></span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Job Scheduling</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="healthStatus.services?.job_scheduling ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          x-text="healthStatus.services?.job_scheduling ? 'Enabled' : 'Disabled'"></span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Job Monitoring</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="healthStatus.services?.job_monitoring ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          x-text="healthStatus.services?.job_monitoring ? 'Enabled' : 'Disabled'"></span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm text-gray-600">Worker Scaling</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="healthStatus.services?.worker_scaling ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          x-text="healthStatus.services?.worker_scaling ? 'Enabled' : 'Disabled'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function backgroundJobsApp() {
+            return {
+                activeTab: 'overview',
+                healthStatus: { status: 'loading', message: 'Loading...', services: {} },
+                stats: { active_workers: 0, job_stats: {}, workers: [] },
+                jobQueue: [],
+                scheduledJobs: [],
+                queueFilter: { status: '', job_type: '' },
+                showCreateScheduledJob: false,
+
+                init() {
+                    this.refreshHealth();
+                    this.refreshStats();
+                    this.loadJobQueue();
+                    this.loadScheduledJobs();
+                },
+
+                async refreshHealth() {
+                    try {
+                        const response = await fetch('/api/background-jobs/health');
+                        this.healthStatus = await response.json();
+                    } catch (error) {
+                        console.error('Failed to fetch health status:', error);
+                        this.healthStatus = { status: 'error', message: 'Failed to fetch health status' };
+                    }
+                },
+
+                async refreshStats() {
+                    try {
+                        const response = await fetch('/api/background-jobs/stats');
+                        this.stats = await response.json();
+                    } catch (error) {
+                        console.error('Failed to fetch stats:', error);
+                    }
+                },
+
+                async loadJobQueue() {
+                    try {
+                        const params = new URLSearchParams();
+                        if (this.queueFilter.status) params.append('status', this.queueFilter.status);
+                        if (this.queueFilter.job_type) params.append('job_type', this.queueFilter.job_type);
+                        
+                        const response = await fetch(`/api/background-jobs/jobs?${params}`);
+                        this.jobQueue = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load job queue:', error);
+                    }
+                },
+
+                async loadScheduledJobs() {
+                    try {
+                        const response = await fetch('/api/background-jobs/scheduled-jobs');
+                        this.scheduledJobs = await response.json();
+                    } catch (error) {
+                        console.error('Failed to load scheduled jobs:', error);
+                    }
+                },
+
+                async createTestJob() {
+                    try {
+                        const response = await fetch('/api/background-jobs/test-job', { method: 'POST' });
+                        const result = await response.json();
+                        alert(`Test job created: ${result.job_id}`);
+                        this.loadJobQueue();
+                    } catch (error) {
+                        console.error('Failed to create test job:', error);
+                        alert('Failed to create test job');
+                    }
+                },
+
+                async cancelJob(jobId) {
+                    if (!confirm('Are you sure you want to cancel this job?')) return;
+                    
+                    try {
+                        const response = await fetch(`/api/background-jobs/jobs/${jobId}/cancel`, { method: 'POST' });
+                        if (response.ok) {
+                            this.loadJobQueue();
+                        } else {
+                            alert('Failed to cancel job');
+                        }
+                    } catch (error) {
+                        console.error('Failed to cancel job:', error);
+                        alert('Failed to cancel job');
+                    }
+                },
+
+                async retryJob(jobId) {
+                    try {
+                        const response = await fetch(`/api/background-jobs/jobs/${jobId}/retry`, { method: 'POST' });
+                        if (response.ok) {
+                            this.loadJobQueue();
+                        } else {
+                            alert('Failed to retry job');
+                        }
+                    } catch (error) {
+                        console.error('Failed to retry job:', error);
+                        alert('Failed to retry job');
+                    }
+                },
+
+                async cleanupOldJobs() {
+                    if (!confirm('Are you sure you want to cleanup old jobs? This will delete completed/failed jobs older than 7 days.')) return;
+                    
+                    try {
+                        const response = await fetch('/api/background-jobs/cleanup?days=7', { method: 'POST' });
+                        const result = await response.json();
+                        alert(`Cleaned up ${result.deleted_count} old jobs`);
+                        this.loadJobQueue();
+                    } catch (error) {
+                        console.error('Failed to cleanup old jobs:', error);
+                        alert('Failed to cleanup old jobs');
+                    }
+                },
+
+                async toggleScheduledJob(jobId, active) {
+                    try {
+                        // This would need a PATCH endpoint to toggle job status
+                        alert('Toggle functionality not implemented yet');
+                    } catch (error) {
+                        console.error('Failed to toggle scheduled job:', error);
+                        alert('Failed to toggle scheduled job');
+                    }
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return '-';
+                    return new Date(dateString).toLocaleString();
+                },
+
+                formatUptime(seconds) {
+                    if (!seconds) return '-';
+                    const hours = Math.floor(seconds / 3600);
+                    const minutes = Math.floor((seconds % 3600) / 60);
+                    return `${hours}h ${minutes}m`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+

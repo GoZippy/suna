@@ -1,0 +1,139 @@
+---
+- name: Backup Suna Infrastructure
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    backup_type: "{{ backup_type | default('full') }}"
+    backup_retention_days: "{{ backup_retention_days | default(30) }}"
+    backup_compression: "{{ backup_compression | default('gzip') }}"
+    backup_encryption: "{{ backup_encryption | default(false) }}"
+    backup_destination: "{{ backup_destination | default('local') }}"
+    
+  pre_tasks:
+    - name: Validate backup parameters
+      assert:
+        that:
+          - backup_type in ['full', 'database', 'files', 'configs', 'monitoring']
+          - backup_retention_days > 0
+          - backup_compression in ['gzip', 'bzip2', 'lz4', 'none']
+          - backup_destination in ['local', 's3', 'nfs', 'scp']
+        fail_msg: "Invalid backup parameters"
+        success_msg: "Backup parameters validated"
+
+    - name: Create backup timestamp
+      set_fact:
+        backup_timestamp: "{{ ansible_date_time.iso8601 }}"
+
+    - name: Create backup session ID
+      set_fact:
+        backup_session_id: "suna-backup-{{ backup_timestamp | regex_replace(':', '-') }}"
+
+  tasks:
+    - name: Pre-backup health check
+      include_tasks: pre-backup-healthcheck.yml
+
+    - name: Stop services before backup
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - suna-frontend
+        - suna-backend
+        - suna-database
+        - suna-redis
+      when: backup_type == "full" and inventory_hostname in groups['application']
+
+    - name: Create database backup
+      include_tasks: backup-database.yml
+      when: backup_type in ['full', 'database'] and inventory_hostname in groups['database']
+
+    - name: Create file backup
+      include_tasks: backup-files.yml
+      when: backup_type in ['full', 'files'] and inventory_hostname in groups['storage']
+
+    - name: Create configuration backup
+      include_tasks: backup-configs.yml
+      when: backup_type in ['full', 'configs']
+
+    - name: Create monitoring backup
+      include_tasks: backup-monitoring.yml
+      when: backup_type in ['full', 'monitoring'] and inventory_hostname in groups['monitoring']
+
+    - name: Create system backup
+      include_tasks: backup-system.yml
+      when: backup_type == "full"
+
+    - name: Compress backup files
+      include_tasks: backup-compress.yml
+      when: backup_compression != "none"
+
+    - name: Encrypt backup files
+      include_tasks: backup-encrypt.yml
+      when: backup_encryption | bool
+
+    - name: Upload backup to remote destination
+      include_tasks: backup-upload.yml
+      when: backup_destination != "local"
+
+    - name: Verify backup integrity
+      include_tasks: backup-verify.yml
+
+    - name: Clean up old backups
+      include_tasks: backup-cleanup.yml
+
+    - name: Start services after backup
+      systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - suna-frontend
+        - suna-backend
+        - suna-database
+        - suna-redis
+      when: backup_type == "full" and inventory_hostname in groups['application']
+
+    - name: Post-backup health check
+      include_tasks: post-backup-healthcheck.yml
+
+    - name: Generate backup report
+      include_tasks: backup-report.yml
+
+  post_tasks:
+    - name: Send backup notification
+      include_tasks: backup-notify.yml
+      when: backup_notification | default(true) | bool
+
+    - name: Update backup inventory
+      include_tasks: backup-inventory.yml
+
+    - name: Display backup summary
+      debug:
+        msg: |
+          Backup Operation Completed:
+          - Type: {{ backup_type }}
+          - Session ID: {{ backup_session_id }}
+          - Timestamp: {{ backup_timestamp }}
+          - Compression: {{ backup_compression }}
+          - Encryption: {{ backup_encryption }}
+          - Destination: {{ backup_destination }}
+          - Retention: {{ backup_retention_days }} days
+          
+          Backup Files Created:
+          {% for file in backup_files | default([]) %}
+          - {{ file.path }} ({{ file.size }})
+          {% endfor %}
+          
+          Next Steps:
+          1. Verify backup integrity
+          2. Test restore procedures
+          3. Update backup documentation
+          4. Monitor backup performance
+
+
+
+
+
+
+

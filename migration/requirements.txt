@@ -1,0 +1,42 @@
+# Suna Migration Tools Requirements
+
+# Core dependencies
+psycopg2-binary>=2.9.7
+pandas>=2.0.0
+structlog>=23.1.0
+PyYAML>=6.0.1
+
+# Supabase integration
+supabase>=2.0.0
+python-dotenv>=1.0.0
+
+# HTTP requests
+requests>=2.31.0
+
+# Data processing
+numpy>=1.24.0
+
+# Optional: For enhanced CSV handling
+openpyxl>=3.1.0  # Excel file support
+xlrd>=2.0.1      # Excel file reading
+
+# Optional: For enhanced compression
+lz4>=4.3.0       # Fast compression
+brotli>=1.1.0    # Brotli compression
+
+# Optional: For encryption (if needed)
+cryptography>=41.0.0
+
+# Development dependencies (optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.7.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+
+
+
+
+
+

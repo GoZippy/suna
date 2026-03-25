@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: suna_password
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
-      - "5432:5432"
+      - "5491:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
@@ -40,7 +40,7 @@ services:
     image: redis:7-alpine
     container_name: suna_redis
     ports:
-      - "6379:6379"
+      - "6391:6379"
     volumes:
       - redis_data:/data
       - ./database/config/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -64,8 +64,67 @@ services:
       - JWT_SECRET_KEY=your-secret-key-change-in-production
       - LOCAL_STORAGE_PATH=/app/data/storage
       - ENV_MODE=local
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1091
+      - SMTP_USE_TLS=false
+      - SENDER_EMAIL=noreply@suna.local
+      - SENDER_NAME=Suna System
+      - ENABLE_LOCAL_EMAIL=true
+      - ENABLE_EMAIL_QUEUE=true
+      - ENABLE_EMAIL_NOTIFICATIONS=true
+      - REDIS_BROKER_HOST=redis
+      - REDIS_BROKER_PORT=6391
+      - REDIS_BROKER_SSL=false
+      - WORKER_PROCESSES=4
+      - WORKER_THREADS=4
+      - ENABLE_BACKGROUND_JOBS=true
+      - ENABLE_JOB_SCHEDULING=true
+      - ENABLE_JOB_MONITORING=true
+      - ENABLE_WORKER_SCALING=true
+      - ENABLE_JOB_PERSISTENCE=true
     ports:
-      - "8000:8000"
+      - "8091:8000"
+    volumes:
+      - ./backend:/app
+      - storage_data:/app/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        python -c 'import asyncio; from database.connection import db_manager; asyncio.run(db_manager.initialize())' &&
+        echo 'Starting backend server...' &&
+        uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # Background job workers
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: suna_worker
+    environment:
+      - DATABASE_URL=postgresql://suna_user:suna_password@postgres:5432/suna
+      - REDIS_URL=redis://redis:6391
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+      - LOCAL_STORAGE_PATH=/app/data/storage
+      - ENV_MODE=local
+      - REDIS_BROKER_HOST=redis
+      - REDIS_BROKER_PORT=6391
+      - REDIS_BROKER_SSL=false
+      - WORKER_PROCESSES=4
+      - WORKER_THREADS=4
+      - ENABLE_BACKGROUND_JOBS=true
+      - ENABLE_JOB_SCHEDULING=true
+      - ENABLE_JOB_MONITORING=true
+      - ENABLE_WORKER_SCALING=true
+      - ENABLE_JOB_PERSISTENCE=true
     volumes:
       - ./backend:/app
       - storage_data:/app/data/storage
@@ -79,8 +138,8 @@ services:
       sh -c "
         echo 'Waiting for database to be ready...' &&
         python -c 'import asyncio; from database.connection import db_manager; asyncio.run(db_manager.initialize())' &&
-        echo 'Starting backend server...' &&
-        uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+        echo 'Starting background job workers...' &&
+        uv run dramatiq --processes 4 --threads 4 run_agent_background
       "
 
   # Suna frontend application
@@ -90,10 +149,10 @@ services:
       dockerfile: Dockerfile
     container_name: suna_frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8091
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8091
     ports:
-      - "3000:3000"
+      - "3091:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -106,7 +165,7 @@ services:
     image: ollama/ollama:latest
     container_name: suna_ollama
     ports:
-      - "11434:11434"
+      - "11491:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
@@ -120,6 +179,15 @@ services:
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
+
+  # MailHog for local email testing and development
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: suna_mailhog
+    ports:
+      - "1091:1025"  # SMTP port
+      - "8091:8025"  # Web UI port
+    restart: unless-stopped
 
 volumes:
   postgres_data:

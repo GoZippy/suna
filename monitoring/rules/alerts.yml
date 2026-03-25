@@ -1,0 +1,72 @@
+groups:
+  - name: suna_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: suna_system_cpu_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 5 minutes"
+
+      - alert: HighMemoryUsage
+        expr: suna_system_memory_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% for more than 5 minutes"
+
+      - alert: HighDiskUsage
+        expr: suna_system_disk_percent > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is above 90% for more than 5 minutes"
+
+      - alert: DatabaseHighLatency
+        expr: suna_database_latency_ms > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database high latency detected"
+          description: "Database latency is above 1000ms for more than 2 minutes"
+
+      - alert: RedisHighLatency
+        expr: suna_redis_latency_ms > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis high latency detected"
+          description: "Redis latency is above 100ms for more than 2 minutes"
+
+      - alert: TooManyWebSocketConnections
+        expr: suna_websocket_active_connections > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many WebSocket connections"
+          description: "More than 100 active WebSocket connections for more than 5 minutes"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "A service has been down for more than 1 minute"
+
+
+
+
+
+
+

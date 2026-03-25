@@ -16,7 +16,7 @@ services:
       - ./database/init:/docker-entrypoint-initdb.d:ro
       - ./backend/database/migrations:/migrations:ro
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:18881:5432"
     networks:
       - suna-network
     healthcheck:
@@ -49,7 +49,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:18882:6379"
     networks:
       - suna-network
     healthcheck:
@@ -60,7 +60,6 @@ services:
 
   # Application Layer
   backend:
-    image: ghcr.io/suna-ai/suna-backend:latest
     container_name: suna-backend
     build:
       context: ./backend
@@ -77,16 +76,16 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@suna.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin_password_change_this}
       - SMTP_HOST=${SMTP_HOST:-mailhog}
-      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_PORT=${SMTP_PORT:-18886}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - LOG_LEVEL=INFO
-      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "http://suna.local:3000"]
+      - CORS_ORIGINS=["http://localhost:18884", "http://127.0.0.1:18884", "http://suna.local:18884"]
     volumes:
       - backend_logs:/app/logs
       - ./backend/.env:/app/.env:ro
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:18883:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,7 +101,6 @@ services:
       start_period: 40s
 
   worker:
-    image: ghcr.io/suna-ai/suna-backend:latest
     container_name: suna-worker
     build:
       context: ./backend
@@ -138,7 +136,6 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/suna-ai/suna-frontend:latest
     container_name: suna-frontend
     build:
       context: ./frontend
@@ -149,13 +146,13 @@ services:
       - NEXT_PUBLIC_API_URL=http://backend:8000
       - NEXT_PUBLIC_SUPABASE_URL=http://backend:8000
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:18884:3001"
     depends_on:
       - backend
     networks:
       - suna-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -174,9 +171,11 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      - "127.0.0.1:11434:11434"
+      - "127.0.0.1:18885:11434"
     networks:
       - suna-network
+    profiles:
+      - ollama-docker
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
@@ -197,8 +196,8 @@ services:
     container_name: suna-mailhog
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1025:1025"  # SMTP server
-      - "127.0.0.1:8025:8025"  # Web interface
+      - "127.0.0.1:18886:1025"  # SMTP server
+      - "127.0.0.1:18887:8025"  # Web interface
     networks:
       - suna-network
     healthcheck:
@@ -223,7 +222,7 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:18888:9090"
     networks:
       - suna-network
     healthcheck:
@@ -244,13 +243,13 @@ services:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:18889:3002"
     depends_on:
       - prometheus
     networks:
       - suna-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -324,3 +323,4 @@ volumes:
     driver: local
   sandbox_data:
     driver: local
+

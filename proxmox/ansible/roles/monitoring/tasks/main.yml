@@ -1,0 +1,260 @@
+---
+- name: Install monitoring dependencies
+  apt:
+    name:
+      - prometheus
+      - grafana
+      - node-exporter
+      - alertmanager
+      - prometheus-pushgateway
+    state: present
+  when: ansible_os_family == "Debian" and inventory_hostname in groups['monitoring']
+
+- name: Create monitoring directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  loop:
+    - "{{ suna_home }}/monitoring"
+    - "{{ suna_home }}/monitoring/prometheus"
+    - "{{ suna_home }}/monitoring/grafana"
+    - "{{ suna_home }}/monitoring/alertmanager"
+    - "{{ suna_home }}/monitoring/node-exporter"
+    - "{{ suna_data }}/prometheus"
+    - "{{ suna_data }}/grafana"
+    - "{{ suna_data }}/alertmanager"
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Prometheus
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ suna_home }}/monitoring/prometheus/prometheus.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Prometheus rules
+  template:
+    src: prometheus-rules.yml.j2
+    dest: "{{ suna_home }}/monitoring/prometheus/rules.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Prometheus service
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Grafana
+  template:
+    src: grafana.ini.j2
+    dest: "{{ suna_home }}/monitoring/grafana/grafana.ini"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Grafana provisioning
+  template:
+    src: datasources.yml.j2
+    dest: "{{ suna_home }}/monitoring/grafana/provisioning/datasources/datasources.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Grafana dashboards
+  template:
+    src: dashboards.yml.j2
+    dest: "{{ suna_home }}/monitoring/grafana/provisioning/dashboards/dashboards.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Copy Grafana dashboard JSON files
+  copy:
+    src: "{{ item }}"
+    dest: "{{ suna_home }}/monitoring/grafana/dashboards/"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  loop:
+    - suna-overview.json
+    - suna-application.json
+    - suna-database.json
+    - suna-infrastructure.json
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Grafana service
+  template:
+    src: grafana.service.j2
+    dest: /etc/systemd/system/grafana.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Alertmanager
+  template:
+    src: alertmanager.yml.j2
+    dest: "{{ suna_home }}/monitoring/alertmanager/alertmanager.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Alertmanager service
+  template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Node Exporter
+  template:
+    src: node-exporter.service.j2
+    dest: /etc/systemd/system/node-exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Start and enable monitoring services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - prometheus
+    - grafana
+    - alertmanager
+    - node-exporter
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure monitoring firewall rules
+  ufw:
+    direction: allow
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "{{ suna_ports.prometheus }}"
+    - "{{ suna_ports.grafana }}"
+    - "{{ suna_ports.alertmanager }}"
+    - "9100"  # Node Exporter
+  when: inventory_hostname in groups['monitoring']
+
+- name: Create monitoring health check script
+  template:
+    src: monitoring-healthcheck.sh.j2
+    dest: "{{ suna_home }}/scripts/monitoring-healthcheck.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure monitoring backup script
+  template:
+    src: monitoring-backup.sh.j2
+    dest: "{{ suna_home }}/scripts/monitoring-backup.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure monitoring backup cron job
+  cron:
+    name: "Monitoring backup"
+    hour: "1"
+    minute: "0"
+    job: "{{ suna_home }}/scripts/monitoring-backup.sh"
+    user: "{{ suna_user }}"
+  when: inventory_hostname in groups['monitoring']
+
+- name: Create monitoring dashboard configuration
+  template:
+    src: suna-dashboards.yml.j2
+    dest: "{{ suna_home }}/monitoring/grafana/provisioning/dashboards/suna-dashboards.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure Prometheus targets
+  template:
+    src: targets.yml.j2
+    dest: "{{ suna_home }}/monitoring/prometheus/targets.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure monitoring alerts
+  template:
+    src: alerts.yml.j2
+    dest: "{{ suna_home }}/monitoring/prometheus/alerts.yml"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Create monitoring startup script
+  template:
+    src: monitoring-startup.sh.j2
+    dest: "{{ suna_home }}/scripts/monitoring-startup.sh"
+    owner: "{{ suna_user }}"
+    group: "{{ suna_group }}"
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Configure monitoring log rotation
+  template:
+    src: monitoring-logrotate.j2
+    dest: /etc/logrotate.d/monitoring
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname in groups['monitoring']
+
+- name: Wait for monitoring services to be ready
+  wait_for:
+    host: "{{ ansible_default_ipv4.address }}"
+    port: "{{ item }}"
+    delay: 10
+    timeout: 300
+  loop:
+    - "{{ suna_ports.prometheus }}"
+    - "{{ suna_ports.grafana }}"
+    - "{{ suna_ports.alertmanager }}"
+  when: inventory_hostname in groups['monitoring']
+
+- name: Verify monitoring services
+  uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ item }}/"
+    method: GET
+    status_code: 200
+  loop:
+    - "{{ suna_ports.prometheus }}"
+    - "{{ suna_ports.grafana }}"
+    - "{{ suna_ports.alertmanager }}"
+  when: inventory_hostname in groups['monitoring']
+
+
+
+
+
+
+

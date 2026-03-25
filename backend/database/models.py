@@ -302,3 +302,166 @@ class SandboxInstance(Base, TimestampMixin):
         Index('idx_sandbox_instances_status', 'status'),
         Index('idx_sandbox_instances_container_id', 'container_id'),
     )
+
+class WorkerNode(Base, TimestampMixin):
+    """Worker node model for tracking worker instances"""
+    __tablename__ = 'worker_nodes'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    worker_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(INET)
+    status: Mapped[str] = mapped_column(String(50), default='active')  # active, inactive, offline
+    process_count: Mapped[int] = mapped_column(Integer, default=0)
+    thread_count: Mapped[int] = mapped_column(Integer, default=0)
+    current_load: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0.00)  # percentage
+    memory_usage: Mapped[Optional[int]] = mapped_column(Integer)  # bytes
+    cpu_usage: Mapped[Optional[float]] = mapped_column(DECIMAL(5, 2))  # percentage
+    last_heartbeat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    stopped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    
+    __table_args__ = (
+        Index('idx_worker_nodes_worker_id', 'worker_id'),
+        Index('idx_worker_nodes_status', 'status'),
+        Index('idx_worker_nodes_last_heartbeat', 'last_heartbeat'),
+        Index('idx_worker_nodes_status_heartbeat', 'status', 'last_heartbeat'),
+    )
+
+class WebSocketConnection(Base, TimestampMixin):
+    """WebSocket connection model for tracking persistent connections"""
+    __tablename__ = 'websocket_connections'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    connection_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    user_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    session_id: Mapped[Optional[str]] = mapped_column(String(255))
+    ip_address: Mapped[Optional[str]] = mapped_column(INET)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(50), default='connected')  # connected, disconnected, expired
+    last_activity: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    disconnected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    subscriptions: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)  # Store thread/project/agent subscriptions
+    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    
+    # Relationships
+    user = relationship("User", backref="websocket_connections")
+    
+    __table_args__ = (
+        Index('idx_websocket_connections_connection_id', 'connection_id'),
+        Index('idx_websocket_connections_user_id', 'user_id'),
+        Index('idx_websocket_connections_status', 'status'),
+        Index('idx_websocket_connections_last_activity', 'last_activity'),
+        Index('idx_websocket_connections_connected_at', 'connected_at'),
+    )
+
+class FileStorage(Base, TimestampMixin):
+    """File storage model for managing uploaded files"""
+    __tablename__ = 'file_storage'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    file_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    project_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('projects.project_id', ondelete='CASCADE'))
+    original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA256 hash
+    status: Mapped[str] = mapped_column(String(50), default='active')  # active, deleted, archived
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    download_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_downloaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    metadata: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    
+    # Relationships
+    user = relationship("User", backref="files")
+    project = relationship("Project", backref="files")
+    versions = relationship("FileVersion", back_populates="file", cascade="all, delete-orphan")
+    shares = relationship("FileShare", back_populates="file", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_file_storage_file_id', 'file_id'),
+        Index('idx_file_storage_user_id', 'user_id'),
+        Index('idx_file_storage_project_id', 'project_id'),
+        Index('idx_file_storage_file_hash', 'file_hash'),
+        Index('idx_file_storage_status', 'status'),
+        Index('idx_file_storage_content_type', 'content_type'),
+    )
+
+class FileVersion(Base, TimestampMixin):
+    """File version model for versioning support"""
+    __tablename__ = 'file_versions'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    file_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('file_storage.id', ondelete='CASCADE'))
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    change_description: Mapped[Optional[str]] = mapped_column(Text)
+    created_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    
+    # Relationships
+    file = relationship("FileStorage", back_populates="versions")
+    creator = relationship("User")
+    
+    __table_args__ = (
+        Index('idx_file_versions_file_id', 'file_id'),
+        Index('idx_file_versions_version_number', 'version_number'),
+        UniqueConstraint('file_id', 'version_number', name='uq_file_version'),
+    )
+
+class FileShare(Base, TimestampMixin):
+    """File sharing model for permission management"""
+    __tablename__ = 'file_shares'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    file_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('file_storage.id', ondelete='CASCADE'))
+    shared_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    shared_with: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    share_token: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    permissions: Mapped[str] = mapped_column(String(50), default='read')  # read, write, admin
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Relationships
+    file = relationship("FileStorage", back_populates="shares")
+    sharer = relationship("User", foreign_keys=[shared_by])
+    recipient = relationship("User", foreign_keys=[shared_with])
+    
+    __table_args__ = (
+        Index('idx_file_shares_file_id', 'file_id'),
+        Index('idx_file_shares_shared_by', 'shared_by'),
+        Index('idx_file_shares_shared_with', 'shared_with'),
+        Index('idx_file_shares_share_token', 'share_token'),
+        Index('idx_file_shares_expires_at', 'expires_at'),
+    )
+
+class FileBackup(Base, TimestampMixin):
+    """File backup model for backup management"""
+    __tablename__ = 'file_backups'
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    file_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('file_storage.id', ondelete='CASCADE'))
+    backup_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    backup_path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    backup_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    backup_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    backup_type: Mapped[str] = mapped_column(String(50), default='manual')  # manual, scheduled, version
+    retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    created_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    
+    # Relationships
+    file = relationship("FileStorage")
+    creator = relationship("User")
+    
+    __table_args__ = (
+        Index('idx_file_backups_file_id', 'file_id'),
+        Index('idx_file_backups_backup_type', 'backup_type'),
+        Index('idx_file_backups_created_at', 'created_at'),
+    )

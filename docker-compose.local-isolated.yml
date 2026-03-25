@@ -1,0 +1,246 @@
+version: '3.8'
+
+services:
+  # Database Layer - Isolated Ports
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: zippy-suna-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: suna
+      POSTGRES_USER: suna
+      POSTGRES_PASSWORD: sgLvULyaUIwTmqKy
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./backend/database/migrations:/migrations:ro
+    ports:
+      - "127.0.0.1:18881:5432"
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suna -d suna"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - default_statistics_target=100
+
+  redis:
+    image: redis:8-alpine
+    container_name: zippy-suna-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 4gb --maxmemory-policy allkeys-lru --save 60 1 --loglevel warning --requirepass qndekBgaDaZJ24ub
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:18882:6379"
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "qndekBgaDaZJ24ub", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application Layer
+  backend:
+    container_name: zippy-suna-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://suna:sgLvULyaUIwTmqKy@postgres:5432/suna
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=qndekBgaDaZJ24ub
+      - REDIS_SSL=False
+      - JWT_SECRET_KEY=rqyZKipLpJK8GbaiJahDy#!G4BWFGsC^
+      - ADMIN_EMAIL=admin@localhost
+      - ADMIN_PASSWORD=5rF4N5hPOufrJZ6c
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USER=
+      - SMTP_PASSWORD=
+      - LOG_LEVEL=DEBUG
+      - CORS_ORIGINS=["http://localhost:18884", "http://127.0.0.1:18884"]
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - backend_logs:/app/logs
+      - ./backend/.env:/app/.env:ro
+    ports:
+      - "127.0.0.1:18883:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    container_name: zippy-suna-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:18883
+      - NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "127.0.0.1:18884:3000"
+    depends_on:
+      - backend
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # AI/ML Services (Optional - for users without local Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: zippy-suna-ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MAX_LOADED_MODELS=3
+      - OLLAMA_MAX_QUEUE=512
+      - OLLAMA_RUNNERS_DIR=/tmp/ollama-runners
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:18885:11434"
+    networks:
+      - zippy-suna-network
+    profiles:
+      - ollama-container
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Supporting Services
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: zippy-suna-mailhog
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18886:1025"  # SMTP server
+      - "127.0.0.1:18887:8025"   # Web interface
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring and Observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: zippy-suna-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=48h
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:18888:9090"
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: zippy-suna-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=lRdW1xkCP8S3IpQU
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:18889:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - zippy-suna-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  zippy-suna-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  backend_logs:
+    driver: local

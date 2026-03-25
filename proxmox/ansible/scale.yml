@@ -1,0 +1,123 @@
+---
+- name: Scale Suna Infrastructure on Proxmox
+  hosts: localhost
+  gather_facts: no
+  vars:
+    scale_type: "{{ scale_type | default('horizontal') }}"
+    scale_count: "{{ scale_count | default(1) }}"
+    scale_component: "{{ scale_component | default('application') }}"
+    
+  tasks:
+    - name: Validate scaling parameters
+      assert:
+        that:
+          - scale_type in ['horizontal', 'vertical']
+          - scale_count > 0
+          - scale_component in ['application', 'database', 'storage', 'load_balancer', 'redis', 'monitoring']
+        fail_msg: "Invalid scaling parameters"
+        success_msg: "Scaling parameters validated"
+
+    - name: Get current infrastructure state
+      terraform_output:
+        project_path: "{{ playbook_dir }}/../terraform"
+        output: "{{ item }}"
+      register: terraform_outputs
+      loop:
+        - all_vms
+        - all_containers
+        - service_endpoints
+        - load_balancer_config
+
+    - name: Display current infrastructure state
+      debug:
+        msg: |
+          Current Infrastructure State:
+          - VMs: {{ terraform_outputs.results[0].value | length }}
+          - Containers: {{ terraform_outputs.results[1].value | length }}
+          - Service Endpoints: {{ terraform_outputs.results[2].value | keys | list }}
+          - Load Balancer Config: {{ terraform_outputs.results[3].value | keys | list }}
+
+    - name: Scale infrastructure using Terraform
+      terraform:
+        project_path: "{{ playbook_dir }}/../terraform"
+        plan_file: "{{ playbook_dir }}/../terraform/scale.tfplan"
+        state: present
+        variables:
+          "{{ scale_component }}_node_count": "{{ scale_count }}"
+      when: scale_type == "horizontal"
+
+    - name: Scale vertically using Terraform
+      terraform:
+        project_path: "{{ playbook_dir }}/../terraform"
+        plan_file: "{{ playbook_dir }}/../terraform/scale.tfplan"
+        state: present
+        variables:
+          "{{ scale_component }}_vm_memory": "{{ scale_count * 1024 }}"
+          "{{ scale_component }}_vm_cores": "{{ scale_count }}"
+      when: scale_type == "vertical"
+
+    - name: Wait for new resources to be ready
+      wait_for:
+        host: "{{ item }}"
+        port: 22
+        delay: 30
+        timeout: 600
+      loop: "{{ terraform_outputs.results[0].value | map(attribute='ip_address') | list }}"
+      when: scale_type == "horizontal"
+
+    - name: Update Ansible inventory
+      template:
+        src: inventory-update.yml.j2
+        dest: "{{ playbook_dir }}/inventory-updated.yml"
+        vars:
+          new_hosts: "{{ terraform_outputs.results[0].value }}"
+          scale_component: "{{ scale_component }}"
+
+    - name: Run configuration on new hosts
+      ansible_playbook:
+        playbook: "{{ playbook_dir }}/configure-new-hosts.yml"
+        inventory: "{{ playbook_dir }}/inventory-updated.yml"
+        extra_vars:
+          scale_component: "{{ scale_component }}"
+      when: scale_type == "horizontal"
+
+    - name: Update load balancer configuration
+      include_tasks: update-load-balancer.yml
+      when: scale_component == "application" and scale_type == "horizontal"
+
+    - name: Update monitoring configuration
+      include_tasks: update-monitoring.yml
+      when: scale_type == "horizontal"
+
+    - name: Update service discovery
+      include_tasks: update-service-discovery.yml
+      when: scale_type == "horizontal"
+
+    - name: Verify scaling operation
+      include_tasks: verify-scaling.yml
+
+    - name: Display scaling summary
+      debug:
+        msg: |
+          Scaling Operation Completed:
+          - Type: {{ scale_type }}
+          - Component: {{ scale_component }}
+          - Count: {{ scale_count }}
+          - Status: Success
+          
+          New Infrastructure State:
+          - Total VMs: {{ terraform_outputs.results[0].value | length }}
+          - Total Containers: {{ terraform_outputs.results[1].value | length }}
+          
+          Next Steps:
+          1. Monitor service health
+          2. Verify load distribution
+          3. Update documentation
+          4. Test failover scenarios
+
+
+
+
+
+
+

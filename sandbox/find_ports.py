@@ -22,10 +22,10 @@ def find_available_port_with_pattern(preferred_port: int) -> int:
     if is_port_available(preferred_port):
         return preferred_port
     
-    # If preferred port is not available, try other ports ending in 17
+    # If preferred port is not available, try other ports ending in 91
     base = preferred_port // 100 * 100
-    for offset in range(1, 100):  # Try x17, x+117, x+217, etc.
-        port = base + (offset * 100) + 17
+    for offset in range(1, 100):  # Try x91, x+191, x+291, etc.
+        port = base + (offset * 100) + 91
         if port > 65535:  # Max port number
             break
         if is_port_available(port):
@@ -43,11 +43,11 @@ def find_available_port_with_pattern(preferred_port: int) -> int:
 def find_sandbox_ports() -> Dict[str, int]:
     """Find available ports for sandbox services"""
     services = {
-        "VNC": 5917,
-        "noVNC": 6017,
-        "Dev-React": 3017,
-        "Dev-FastAPI": 8017,
-        "Dev-General": 8117
+        "VNC": 5991,
+        "noVNC": 6091,
+        "Dev-React": 3091,
+        "Dev-FastAPI": 8091,
+        "Dev-General": 8191
     }
     
     available_ports = {}
@@ -63,7 +63,7 @@ def find_sandbox_ports() -> Dict[str, int]:
 
 def check_common_ports() -> List[int]:
     """Check which common development ports are in use"""
-    common_ports = [3000, 3001, 5901, 6080, 8000, 8080, 8081, 3017, 5917, 6017, 8017, 8117]
+    common_ports = [3091, 3191, 5901, 6080, 8091, 8080, 8081, 5991, 6091, 8191]
     used_ports = []
     
     for port in common_ports:

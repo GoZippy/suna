@@ -49,18 +49,18 @@ class SandboxManager:
         port_mappings = {}
         
         # VNC port - try preferred pattern first
-        vnc_port = config.vnc_port or find_available_port_with_pattern(5917)
+        vnc_port = config.vnc_port or find_available_port_with_pattern(5991)
         port_mappings["5901/tcp"] = vnc_port
         
         # noVNC web interface port
-        novnc_port = find_available_port_with_pattern(6017)
+        novnc_port = find_available_port_with_pattern(6091)
         port_mappings["6080/tcp"] = novnc_port
         
         # Development ports
-        dev_ports = config.dev_ports or [3000, 8000, 8080]
+        dev_ports = config.dev_ports or [3091, 8091, 8080]
         for i, port in enumerate(dev_ports):
-            # Use pattern like 3017, 8017, 8117 for host ports
-            preferred_host_port = int(f"{port // 1000}{(port % 1000) // 100}17")
+            # Use pattern like 3091, 8091, 8191 for host ports
+            preferred_host_port = int(f"{port // 1000}{(port % 1000) // 100}91")
             if preferred_host_port == port:  # Avoid same port
                 preferred_host_port += 1000
             host_port = find_available_port_with_pattern(preferred_host_port)
@@ -312,8 +312,8 @@ class SandboxManager:
         
         # If preferred port is not available, try other ports ending in 17
         base = preferred_port // 100 * 100
-        for offset in range(1, 100):  # Try x17, x+117, x+217, etc.
-            port = base + (offset * 100) + 17
+        for offset in range(1, 100):  # Try x91, x+191, x+291, etc.
+            port = base + (offset * 100) + 91
             if port > 65535:  # Max port number
                 break
             try:
@@ -375,7 +375,7 @@ if __name__ == "__main__":
     config = SandboxConfig(
         project_id="test-project-123",
         user_id="user-456",
-        dev_ports=[3000, 8000]
+        dev_ports=[3091, 8091]
     )
     
     try:

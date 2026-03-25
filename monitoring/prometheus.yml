@@ -2,9 +2,14 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - "rules/alerts.yml"
 
 scrape_configs:
   # Prometheus itself
@@ -16,7 +21,7 @@ scrape_configs:
   - job_name: 'suna-backend'
     static_configs:
       - targets: ['backend:8000']
-    metrics_path: '/metrics'
+    metrics_path: '/api/monitoring/metrics/prometheus'
     scrape_interval: 30s
 
   # Docker daemon metrics (if enabled)

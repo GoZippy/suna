@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Storage Management - Suna Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .tab-button.active { 
+            background-color: #3b82f6; 
+            color: white; 
+        }
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-active { background-color: #10b981; }
+        .status-deleted { background-color: #ef4444; }
+        .status-archived { background-color: #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-4">
+                    <div class="flex items-center">
+                        <h1 class="text-2xl font-bold text-gray-900">File Storage Management</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700">Dashboard</a>
+                        <a href="/admin/users" class="text-gray-500 hover:text-gray-700">Users</a>
+                        <a href="/admin/local-ai" class="text-gray-500 hover:text-gray-700">Local AI</a>
+                        <a href="/admin/local-email" class="text-gray-500 hover:text-gray-700">Email</a>
+                        <a href="/admin/background-jobs" class="text-gray-500 hover:text-gray-700">Jobs</a>
+                        <a href="/admin/websocket" class="text-gray-500 hover:text-gray-700">WebSocket</a>
+                        <a href="/admin/file-storage" class="text-blue-600 font-medium">File Storage</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Status Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Total Files</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="total-files">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Total Storage</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="total-storage">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Active Users</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="active-users">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Recent Uploads</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="recent-uploads">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8 px-6">
+                        <button class="tab-button active py-4 px-1 border-b-2 border-blue-500 font-medium text-sm" onclick="showTab('overview')">
+                            Overview
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('files')">
+                            Files
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('users')">
+                            User Storage
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('cleanup')">
+                            Cleanup
+                        </button>
+                        <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="showTab('settings')">
+                            Settings
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overview" class="tab-content active p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Storage Statistics -->
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Storage Statistics</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Total Files:</span>
+                                    <span class="font-medium" id="total-files-overview">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Active Files:</span>
+                                    <span class="font-medium" id="active-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Deleted Files:</span>
+                                    <span class="font-medium" id="deleted-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Total Size:</span>
+                                    <span class="font-medium" id="total-size-overview">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Average File Size:</span>
+                                    <span class="font-medium" id="avg-file-size">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Statistics -->
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">User Statistics</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Users with Files:</span>
+                                    <span class="font-medium" id="users-with-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Top Storage User:</span>
+                                    <span class="font-medium" id="top-storage-user">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Shared Files:</span>
+                                    <span class="font-medium" id="shared-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Public Files:</span>
+                                    <span class="font-medium" id="public-files">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="mt-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Recent File Activity</h3>
+                        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-medium text-gray-900">File Operations</span>
+                                    <button onclick="refreshActivity()" class="text-sm text-blue-600 hover:text-blue-800">Refresh</button>
+                                </div>
+                            </div>
+                            <div class="divide-y divide-gray-200" id="recent-activity">
+                                <!-- Activity items will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Files Tab -->
+                <div id="files" class="tab-content p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">File Management</h3>
+                        <div class="flex space-x-2">
+                            <input type="text" id="file-search" placeholder="Search files..." class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <button onclick="searchFiles()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                Search
+                            </button>
+                            <button onclick="refreshFiles()" class="px-3 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700">
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filename</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="files-table">
+                                    <!-- File rows will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Storage Tab -->
+                <div id="users" class="tab-content p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">User Storage Usage</h3>
+                        <button onclick="refreshUserStorage()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Files</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used Storage</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quota</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage %</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="user-storage-table">
+                                    <!-- User storage rows will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cleanup Tab -->
+                <div id="cleanup" class="tab-content p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Cleanup Operations -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Cleanup Operations</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cleanup Expired Files</label>
+                                    <button onclick="cleanupExpiredFiles()" class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                                        Cleanup Expired Files
+                                    </button>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cleanup Deleted Files</label>
+                                    <button onclick="cleanupDeletedFiles()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">
+                                        Cleanup Deleted Files
+                                    </button>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cleanup Old Backups</label>
+                                    <button onclick="cleanupOldBackups()" class="w-full px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700">
+                                        Cleanup Old Backups
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Storage Analysis -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Storage Analysis</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Largest Files:</span>
+                                    <span class="font-medium" id="largest-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Duplicate Files:</span>
+                                    <span class="font-medium" id="duplicate-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Orphaned Files:</span>
+                                    <span class="font-medium" id="orphaned-files">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Potential Savings:</span>
+                                    <span class="font-medium" id="potential-savings">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings" class="tab-content p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- File Storage Configuration -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">File Storage Configuration</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Storage Path</label>
+                                    <input type="text" id="storage-path" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="/data/files">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Max File Size (MB)</label>
+                                    <input type="number" id="max-file-size" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="100">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Default User Quota (GB)</label>
+                                    <input type="number" id="default-quota" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="5">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Backup Retention (days)</label>
+                                    <input type="number" id="backup-retention" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="30">
+                                </div>
+                                <button onclick="saveStorageSettings()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                    Save Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Feature Flags -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Feature Flags</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-file-storage" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-file-storage" class="ml-2 block text-sm text-gray-900">Enable File Storage</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-versioning" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-versioning" class="ml-2 block text-sm text-gray-900">Enable File Versioning</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-sharing" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-sharing" class="ml-2 block text-sm text-gray-900">Enable File Sharing</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-backup" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-backup" class="ml-2 block text-sm text-gray-900">Enable File Backup</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-search" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-search" class="ml-2 block text-sm text-gray-900">Enable File Search</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-quota" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-quota" class="ml-2 block text-sm text-gray-900">Enable Storage Quota</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="enable-deduplication" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" checked>
+                                    <label for="enable-deduplication" class="ml-2 block text-sm text-gray-900">Enable File Deduplication</label>
+                                </div>
+                                <button onclick="saveFeatureFlags()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                    Save Feature Flags
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+                button.classList.remove('border-blue-500');
+                button.classList.add('border-transparent');
+                button.classList.add('text-gray-500');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to selected tab button
+            event.target.classList.add('active');
+            event.target.classList.add('border-blue-500');
+            event.target.classList.remove('border-transparent');
+            event.target.classList.remove('text-gray-500');
+        }
+
+        // Load file storage statistics
+        async function loadFileStorageStats() {
+            try {
+                const response = await fetch('/api/files/stats');
+                const stats = await response.json();
+                
+                document.getElementById('total-files').textContent = stats.total_files || 0;
+                document.getElementById('total-files-overview').textContent = stats.total_files || 0;
+                document.getElementById('total-storage').textContent = formatBytes(stats.total_size_bytes || 0);
+                document.getElementById('total-size-overview').textContent = formatBytes(stats.total_size_bytes || 0);
+                document.getElementById('active-users').textContent = stats.active_users || 0;
+                document.getElementById('recent-uploads').textContent = stats.recent_uploads || 0;
+                
+                // Overview stats
+                document.getElementById('active-files').textContent = stats.active_files || 0;
+                document.getElementById('deleted-files').textContent = stats.deleted_files || 0;
+                document.getElementById('avg-file-size').textContent = formatBytes(stats.avg_file_size || 0);
+                document.getElementById('users-with-files').textContent = stats.users_with_files || 0;
+                document.getElementById('top-storage-user').textContent = stats.top_storage_user || 'N/A';
+                document.getElementById('shared-files').textContent = stats.shared_files || 0;
+                document.getElementById('public-files').textContent = stats.public_files || 0;
+                
+            } catch (error) {
+                console.error('Error loading file storage stats:', error);
+            }
+        }
+
+        // Load files
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files/admin/list');
+                const files = await response.json();
+                
+                const tbody = document.getElementById('files-table');
+                tbody.innerHTML = '';
+                
+                files.forEach(file => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${file.file_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${file.original_filename}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${file.user_email || 'Unknown'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatBytes(file.file_size)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="status-indicator status-${file.status}"></span>
+                            <span class="text-sm text-gray-900">${file.status}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(file.created_at).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="viewFile('${file.file_id}')" class="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                            <button onclick="deleteFile('${file.file_id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+        // Load user storage
+        async function loadUserStorage() {
+            try {
+                const response = await fetch('/api/files/admin/user-storage');
+                const users = await response.json();
+                
+                const tbody = document.getElementById('user-storage-table');
+                tbody.innerHTML = '';
+                
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.user_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.email}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.file_count}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatBytes(user.total_size_bytes)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatBytes(user.max_storage_bytes)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.usage_percentage.toFixed(1)}%</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="viewUserFiles('${user.user_id}')" class="text-blue-600 hover:text-blue-900">View Files</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                console.error('Error loading user storage:', error);
+            }
+        }
+
+        // Load recent activity
+        async function loadRecentActivity() {
+            try {
+                const response = await fetch('/api/files/admin/activity');
+                const activity = await response.json();
+                
+                const container = document.getElementById('recent-activity');
+                container.innerHTML = '';
+                
+                activity.forEach(event => {
+                    const item = document.createElement('div');
+                    item.className = 'px-6 py-4';
+                    item.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">${event.type}</p>
+                                <p class="text-sm text-gray-500">${event.description}</p>
+                            </div>
+                            <span class="text-xs text-gray-400">${new Date(event.timestamp).toLocaleString()}</span>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+            }
+        }
+
+        // Cleanup operations
+        async function cleanupExpiredFiles() {
+            if (!confirm('Are you sure you want to cleanup expired files?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/files/admin/cleanup-expired', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Expired files cleanup completed');
+                    loadFileStorageStats();
+                } else {
+                    alert('Failed to cleanup expired files');
+                }
+            } catch (error) {
+                console.error('Error cleaning up expired files:', error);
+                alert('Error cleaning up expired files');
+            }
+        }
+
+        async function cleanupDeletedFiles() {
+            if (!confirm('Are you sure you want to permanently delete all soft-deleted files?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/files/admin/cleanup-deleted', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Deleted files cleanup completed');
+                    loadFileStorageStats();
+                } else {
+                    alert('Failed to cleanup deleted files');
+                }
+            } catch (error) {
+                console.error('Error cleaning up deleted files:', error);
+                alert('Error cleaning up deleted files');
+            }
+        }
+
+        async function cleanupOldBackups() {
+            if (!confirm('Are you sure you want to cleanup old backups?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/files/admin/cleanup-backups', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Old backups cleanup completed');
+                    loadFileStorageStats();
+                } else {
+                    alert('Failed to cleanup old backups');
+                }
+            } catch (error) {
+                console.error('Error cleaning up old backups:', error);
+                alert('Error cleaning up old backups');
+            }
+        }
+
+        // Settings management
+        async function saveStorageSettings() {
+            const settings = {
+                storage_path: document.getElementById('storage-path').value,
+                max_file_size: parseInt(document.getElementById('max-file-size').value) * 1024 * 1024,
+                default_quota: parseInt(document.getElementById('default-quota').value) * 1024 * 1024 * 1024,
+                backup_retention: parseInt(document.getElementById('backup-retention').value)
+            };
+            
+            try {
+                const response = await fetch('/api/files/admin/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (response.ok) {
+                    alert('Settings saved successfully');
+                } else {
+                    alert('Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings');
+            }
+        }
+
+        async function saveFeatureFlags() {
+            const flags = {
+                enable_file_storage: document.getElementById('enable-file-storage').checked,
+                enable_versioning: document.getElementById('enable-versioning').checked,
+                enable_sharing: document.getElementById('enable-sharing').checked,
+                enable_backup: document.getElementById('enable-backup').checked,
+                enable_search: document.getElementById('enable-search').checked,
+                enable_quota: document.getElementById('enable-quota').checked,
+                enable_deduplication: document.getElementById('enable-deduplication').checked
+            };
+            
+            try {
+                const response = await fetch('/api/files/admin/feature-flags', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(flags)
+                });
+                
+                if (response.ok) {
+                    alert('Feature flags saved successfully');
+                } else {
+                    alert('Failed to save feature flags');
+                }
+            } catch (error) {
+                console.error('Error saving feature flags:', error);
+                alert('Error saving feature flags');
+            }
+        }
+
+        // Utility functions
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Refresh functions
+        function refreshFiles() {
+            loadFiles();
+        }
+
+        function refreshUserStorage() {
+            loadUserStorage();
+        }
+
+        function refreshActivity() {
+            loadRecentActivity();
+        }
+
+        function searchFiles() {
+            const query = document.getElementById('file-search').value;
+            // Implement file search functionality
+            console.log('Searching for:', query);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFileStorageStats();
+            loadFiles();
+            loadUserStorage();
+            loadRecentActivity();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadFileStorageStats();
+                if (document.getElementById('overview').classList.contains('active')) {
+                    loadRecentActivity();
+                }
+                if (document.getElementById('files').classList.contains('active')) {
+                    loadFiles();
+                }
+                if (document.getElementById('users').classList.contains('active')) {
+                    loadUserStorage();
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

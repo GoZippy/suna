@@ -150,12 +150,12 @@ with sync_playwright() as p:
 
 ## Ports
 
-Default host ports (using "17" pattern to avoid conflicts):
-- `5917` - VNC server (maps to container port 5901)
-- `6017` - noVNC web interface (maps to container port 6080)
-- `8117` - General development server (maps to container port 8080)
-- `3017` - React/Next.js default port (maps to container port 3000)
-- `8017` - FastAPI/Django default port (maps to container port 8000)
+Default host ports (using "91" pattern to avoid conflicts):
+- `5991` - VNC server (maps to container port 5901)
+- `6091` - noVNC web interface (maps to container port 6080)
+- `8191` - General development server (maps to container port 8080)
+- `3091` - React/Next.js default port (maps to container port 3000)
+- `8091` - FastAPI/Django default port (maps to container port 8000)
 
 **Note**: Use `python find_ports.py` to check available ports and get recommended mappings for your system.
 

@@ -1,0 +1,147 @@
+---
+- name: Deploy Suna on Proxmox Infrastructure
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    suna_version: "latest"
+    suna_user: "suna"
+    suna_group: "suna"
+    suna_home: "/opt/suna"
+    suna_data: "/var/lib/suna"
+    suna_logs: "/var/log/suna"
+    
+    # Port configuration (XX91 scheme)
+    suna_ports:
+      frontend_http: 3091
+      frontend_https: 3092
+      api_http: 8091
+      api_https: 8092
+      postgres: 5491
+      redis: 6391
+      prometheus: 9091
+      grafana: 3191
+      alertmanager: 9191
+      ollama: 11491
+      mailhog: 1091
+      websocket: 8091
+    
+    # Service configuration
+    docker_compose_version: "2.20.0"
+    nodejs_version: "18"
+    python_version: "3.11"
+    
+  pre_tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+    
+    - name: Install essential packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - unzip
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Create Suna user and group
+      user:
+        name: "{{ suna_user }}"
+        group: "{{ suna_group }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ suna_home }}"
+        create_home: yes
+    
+    - name: Create Suna directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ suna_user }}"
+        group: "{{ suna_group }}"
+        mode: '0755'
+      loop:
+        - "{{ suna_home }}"
+        - "{{ suna_data }}"
+        - "{{ suna_logs }}"
+        - "{{ suna_home }}/config"
+        - "{{ suna_home }}/scripts"
+        - "{{ suna_data }}/database"
+        - "{{ suna_data }}/storage"
+        - "{{ suna_data }}/backups"
+        - "{{ suna_logs }}/application"
+        - "{{ suna_logs }}/system"
+
+  roles:
+    - role: common
+    - role: docker
+    - role: monitoring
+    - role: database
+    - role: redis
+    - role: application
+    - role: load_balancer
+    - role: backup
+
+  post_tasks:
+    - name: Wait for services to be ready
+      wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: "{{ item }}"
+        delay: 10
+        timeout: 300
+      loop:
+        - "{{ suna_ports.api_http }}"
+        - "{{ suna_ports.frontend_http }}"
+        - "{{ suna_ports.postgres }}"
+        - "{{ suna_ports.redis }}"
+      when: inventory_hostname in groups['application'] or inventory_hostname in groups['database'] or inventory_hostname in groups['redis']
+    
+    - name: Verify service health
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ suna_ports.api_http }}/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 10
+      when: inventory_hostname in groups['application']
+    
+    - name: Display deployment summary
+      debug:
+        msg: |
+          Suna deployment completed successfully!
+          
+          Service endpoints:
+          - Frontend: http://{{ ansible_default_ipv4.address }}:{{ suna_ports.frontend_http }}
+          - API: http://{{ ansible_default_ipv4.address }}:{{ suna_ports.api_http }}
+          - Database: {{ ansible_default_ipv4.address }}:{{ suna_ports.postgres }}
+          - Redis: {{ ansible_default_ipv4.address }}:{{ suna_ports.redis }}
+          - Prometheus: http://{{ ansible_default_ipv4.address }}:{{ suna_ports.prometheus }}
+          - Grafana: http://{{ ansible_default_ipv4.address }}:{{ suna_ports.grafana }}
+          
+          Logs location: {{ suna_logs }}
+          Data location: {{ suna_data }}
+          
+          Next steps:
+          1. Configure load balancer
+          2. Set up SSL certificates
+          3. Configure monitoring alerts
+          4. Test all functionality
+      when: inventory_hostname in groups['application']
+
+
+
+
+
+
+

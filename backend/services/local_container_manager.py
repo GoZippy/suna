@@ -575,7 +575,7 @@ class PortManager:
     Manages port allocation for containers to avoid conflicts.
     """
     
-    def __init__(self, start_port: int = 15900, end_port: int = 16900):
+    def __init__(self, start_port: int = 15991, end_port: int = 16991):
         """
         Initialize port manager.
         

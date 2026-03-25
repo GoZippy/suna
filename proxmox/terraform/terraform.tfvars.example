@@ -1,0 +1,123 @@
+# Proxmox Provider Configuration
+proxmox_api_url = "https://192.168.1.100:8006/api2/json"
+proxmox_api_token_id = "terraform-provider@pve!terraform-token"
+proxmox_api_token_secret = "your-secret-here"
+proxmox_tls_insecure = true
+proxmox_debug = false
+proxmox_node = "pve"
+
+# Cluster Configuration
+cluster_name = "suna"
+template_name = "ubuntu-22.04-template"
+lxc_template = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.gz"
+storage_pool = "local-lvm"
+network_bridge = "vmbr0"
+network_cidr = "24"
+network_gateway = "192.168.1.1"
+
+# SSH Configuration
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC..."
+lxc_password = "your-lxc-password"
+
+# Network IP Ranges (XX91 port scheme compatible)
+management_network_start_ip = "192.168.1.10"
+application_network_start_ip = "192.168.1.20"
+database_network_start_ip = "192.168.1.30"
+storage_network_start_ip = "192.168.1.40"
+load_balancer_network_start_ip = "192.168.1.50"
+redis_network_start_ip = "192.168.1.60"
+monitoring_network_start_ip = "192.168.1.70"
+
+# Node Counts
+management_node_count = 1
+application_node_count = 2
+database_node_count = 1
+storage_node_count = 1
+load_balancer_count = 1
+redis_container_count = 1
+monitoring_container_count = 1
+
+# Management Node Configuration
+management_vm_cores = 2
+management_vm_memory = 4096
+management_vm_disk_size = "50G"
+
+# Application Node Configuration
+application_vm_cores = 4
+application_vm_memory = 8192
+application_vm_disk_size = "100G"
+
+# Database Node Configuration
+database_vm_cores = 4
+database_vm_memory = 8192
+database_vm_disk_size = "50G"
+database_storage_disk_size = "200G"
+
+# Storage Node Configuration
+storage_vm_cores = 2
+storage_vm_memory = 4096
+storage_vm_disk_size = "50G"
+file_storage_disk_size = "500G"
+backup_storage_disk_size = "1T"
+
+# Load Balancer Configuration
+load_balancer_vm_cores = 2
+load_balancer_vm_memory = 2048
+load_balancer_vm_disk_size = "20G"
+
+# Redis Container Configuration
+redis_cores = 1
+redis_memory = 1024
+redis_swap = 512
+redis_disk_size = "20G"
+
+# Monitoring Container Configuration
+monitoring_cores = 2
+monitoring_memory = 2048
+monitoring_swap = 1024
+monitoring_disk_size = "50G"
+
+# Port Configuration (XX91 scheme)
+suna_ports = {
+  # Frontend
+  frontend_http  = 3091
+  frontend_https = 3092
+  
+  # Backend API
+  api_http  = 8091
+  api_https = 8092
+  
+  # Database
+  postgres = 5491
+  
+  # Redis
+  redis = 6391
+  
+  # Load Balancer
+  lb_http  = 8091
+  lb_https = 8092
+  
+  # Monitoring
+  prometheus = 9091
+  grafana    = 3191
+  alertmanager = 9191
+  
+  # Local Services
+  ollama = 11491
+  mailhog = 1091
+  
+  # WebSocket
+  websocket = 8091
+}
+
+# Validation Rules
+validate_network_range = true
+validate_disk_sizes = true
+validate_memory_allocation = true
+
+
+
+
+
+
+

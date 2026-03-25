@@ -16,6 +16,14 @@ from utils.logger import logger, structlog
 import time
 from collections import OrderedDict
 
+# Security middleware
+try:
+    from middleware.security import setup_security_middleware
+    SECURITY_MIDDLEWARE_AVAILABLE = True
+except ImportError:
+    SECURITY_MIDDLEWARE_AVAILABLE = False
+    logger.warning("Security middleware not available - skipping security setup")
+
 from pydantic import BaseModel
 import uuid
 
@@ -24,6 +32,7 @@ from agent import api as agent_api
 from sandbox import api as sandbox_api
 from services import local_sandbox_api
 from services import billing_local as billing_api
+from admin import admin_dashboard as admin_api
 from flags import api as feature_flags_api
 from services import transcription as transcription_api
 import sys
@@ -71,6 +80,36 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to initialize Redis connection: {e}")
             # Continue without Redis - the application will handle Redis failures gracefully
         
+        # Initialize local LLM service if enabled
+        if config.ENABLE_LOCAL_LLM:
+            try:
+                from services.local_llm import initialize_local_llm
+                await initialize_local_llm()
+                logger.info("Local LLM service initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize local LLM service: {e}")
+                # Continue without local LLM - will fall back to external APIs
+        
+        # Initialize local email service if enabled
+        if config.ENABLE_LOCAL_EMAIL:
+            try:
+                from services.local_email import initialize_local_email
+                await initialize_local_email()
+                logger.info("Local email service initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize local email service: {e}")
+                # Continue without local email - will use fallback methods
+        
+        # Initialize background job processing if enabled
+        if config.ENABLE_BACKGROUND_JOBS:
+            try:
+                from services.background_jobs import initialize_background_jobs
+                await initialize_background_jobs()
+                logger.info("Background job processing initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize background job processing: {e}")
+                # Continue without background jobs - will use fallback methods
+        
         # Start background tasks
         # asyncio.create_task(agent_api.restore_running_agent_runs())
         
@@ -102,6 +141,14 @@ async def lifespan(app: FastAPI):
         raise
 
 app = FastAPI(lifespan=lifespan)
+
+# Setup security middleware if available
+if SECURITY_MIDDLEWARE_AVAILABLE:
+    try:
+        setup_security_middleware(app)
+        logger.info("Security middleware configured successfully")
+    except Exception as e:
+        logger.error(f"Failed to setup security middleware: {e}")
 
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
@@ -169,6 +216,7 @@ api_router.include_router(sandbox_api.router)
 if config.USE_LOCAL_CONTAINERS:
     api_router.include_router(local_sandbox_api.router)
 api_router.include_router(billing_api.router)
+api_router.include_router(admin_api.router)
 api_router.include_router(feature_flags_api.router)
 api_router.include_router(api_keys_api.router)
 
@@ -217,6 +265,19 @@ api_router.include_router(websocket_api.router)
 from services import storage_api
 api_router.include_router(storage_api.router)
 
+# Add comprehensive file storage API
+from api import file_storage
+api_router.include_router(file_storage.router)
+
+from services import local_ai_api
+from api import local_email_api
+from api import background_jobs_api
+from api import monitoring_api
+api_router.include_router(local_ai_api.router)
+api_router.include_router(local_email_api.router)
+api_router.include_router(background_jobs_api.router)
+api_router.include_router(monitoring_api.router)
+
 @api_router.get("/health")
 async def health_check():
     logger.debug("Health check endpoint called")
@@ -262,7 +323,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "api:app", 
         host="0.0.0.0", 
-        port=8000,
+        port=8091,
         workers=workers,
         loop="asyncio"
     )

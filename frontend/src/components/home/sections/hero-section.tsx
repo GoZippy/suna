@@ -8,31 +8,14 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useScroll } from 'motion/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/AuthProvider';
-import {
-  BillingError,
-  AgentRunLimitError,
-} from '@/lib/api';
+// Authentication removed for local-only operation
 import { useInitiateAgentMutation } from '@/hooks/react-query/dashboard/use-initiate-agent';
 import { useThreadQuery } from '@/hooks/react-query/threads/use-threads';
 import { generateThreadName } from '@/lib/actions/threads';
-import GoogleSignIn from '@/components/GoogleSignIn';
 import { useAgents } from '@/hooks/react-query/agents/use-agents';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogOverlay,
-} from '@/components/ui/dialog';
-import { BillingErrorAlert } from '@/components/billing/usage-limit-alert';
-import { useBillingError } from '@/hooks/useBillingError';
-import { useAccounts } from '@/hooks/use-accounts';
 import { isLocalMode, config } from '@/lib/config';
 import { toast } from 'sonner';
-import { BillingModal } from '@/components/billing/billing-modal';
-import GitHubSignIn from '@/components/GithubSignIn';
+import { BillingError, AgentRunLimitError } from '@/lib/api';
 import { ChatInput, ChatInputHandles } from '@/components/thread/chat-input/chat-input';
 import { normalizeFilenameToNFC } from '@/lib/utils/unicode';
 import { createQueryHook } from '@/hooks/use-query';
@@ -41,10 +24,7 @@ import { getAgents } from '@/hooks/react-query/agents/utils';
 import { AgentRunLimitDialog } from '@/components/thread/agent-run-limit-dialog';
 import { Examples } from '@/components/dashboard/examples';
 
-// Custom dialog overlay with blur effect
-const BlurredDialogOverlay = () => (
-  <DialogOverlay className="bg-background/40 backdrop-blur-md" />
-);
+// Dialog overlay removed for self-hosted deployment
 
 // Constant for localStorage key to ensure consistency
 const PENDING_PROMPT_KEY = 'pendingAgentPrompt';
@@ -62,12 +42,8 @@ export function HeroSection() {
   const [inputValue, setInputValue] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>();
   const router = useRouter();
-  const { user, isLoading } = useAuth();
-  const { billingError, handleBillingError, clearBillingError } =
-    useBillingError();
-  const { data: accounts } = useAccounts();
-  const personalAccount = accounts?.find((account) => account.personal_account);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  // Authentication removed for local-only operation
+  // Billing removed for free self-hosted version
   const initiateAgentMutation = useInitiateAgentMutation();
   const [initiatedThreadId, setInitiatedThreadId] = useState<string | null>(null);
   const threadQuery = useThreadQuery(initiatedThreadId || '');
@@ -78,7 +54,7 @@ export function HeroSection() {
     runningThreadIds: string[];
   } | null>(null);
 
-  // Fetch agents for selection
+  // Fetch agents for selection - allow without authentication in self-hosted mode
   const { data: agentsResponse } = createQueryHook(
     agentKeys.list({
       limit: 100,
@@ -91,7 +67,7 @@ export function HeroSection() {
       sort_order: 'asc'
     }),
     {
-      enabled: !!user && !isLoading,
+      enabled: true, // Allow agent fetching without authentication
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
     }
@@ -99,8 +75,7 @@ export function HeroSection() {
 
   const agents = agentsResponse?.agents || [];
 
-  // Auth dialog state
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  // Auth dialog state removed for self-hosted deployment
 
   useEffect(() => {
     setMounted(true);
@@ -130,18 +105,7 @@ export function HeroSection() {
     };
   }, [scrollY]);
 
-  useEffect(() => {
-    if (authDialogOpen && inputValue.trim()) {
-      localStorage.setItem(PENDING_PROMPT_KEY, inputValue.trim());
-    }
-  }, [authDialogOpen, inputValue]);
-
-  useEffect(() => {
-    if (authDialogOpen && user && !isLoading) {
-      setAuthDialogOpen(false);
-      router.push('/dashboard');
-    }
-  }, [user, isLoading, authDialogOpen, router]);
+  // Auth dialog effects removed for self-hosted deployment
 
   useEffect(() => {
     if (threadQuery.data && initiatedThreadId) {
@@ -162,12 +126,8 @@ export function HeroSection() {
   ) => {
     if ((!message.trim() && !chatInputRef.current?.getPendingFiles().length) || isSubmitting) return;
 
-    // If user is not logged in, save prompt and show auth dialog
-    if (!user && !isLoading) {
-      localStorage.setItem(PENDING_PROMPT_KEY, message.trim());
-      setAuthDialogOpen(true);
-      return;
-    }
+    // For self-hosted deployment, allow usage without authentication
+    // Users can still authenticate if they want to save their work
 
     // User is logged in, create the agent with files like dashboard does
     setIsSubmitting(true);
@@ -206,9 +166,7 @@ export function HeroSection() {
       chatInputRef.current?.clearPendingFiles();
       setInputValue('');
     } catch (error: any) {
-      if (error instanceof BillingError) {
-        setShowPaymentModal(true);
-      } else if (error instanceof AgentRunLimitError) {
+      if (error instanceof AgentRunLimitError) {
         const { running_thread_ids, running_count } = error.detail;
         
         setAgentLimitData({
@@ -233,11 +191,7 @@ export function HeroSection() {
 
   return (
     <section id="hero" className="w-full relative overflow-hidden">
-      <BillingModal 
-        open={showPaymentModal} 
-        onOpenChange={setShowPaymentModal}
-        showUsageLimitAlert={true}
-      />
+      {/* Billing modal removed for free self-hosted version */}
       <div className="relative flex flex-col items-center w-full px-4 sm:px-6">
         {/* Left side flickering grid with gradient fades */}
         <div className="hidden sm:block absolute left-0 top-0 h-[500px] sm:h-[600px] md:h-[800px] w-1/4 sm:w-1/3 -z-10 overflow-hidden">
@@ -329,7 +283,7 @@ export function HeroSection() {
               <span className="text-secondary">AI Workforce.</span>
             </h1>
             <p className="text-base md:text-lg text-center text-muted-foreground font-medium text-balance leading-relaxed tracking-tight max-w-2xl px-2">
-            Kortix – the simplest way to migrate from human to AI.
+            Zippy Suna – A fully free and self-hosted fork of the open source Kortix Suna project
             </p>
           </div>
 
@@ -344,7 +298,7 @@ export function HeroSection() {
                   disabled={isSubmitting}
                   value={inputValue}
                   onChange={setInputValue}
-                  isLoggedIn={!!user}
+                  isLoggedIn={true} // Always allow input in self-hosted mode
                   selectedAgentId={selectedAgentId}
                   onAgentSelect={setSelectedAgentId}
                   autoFocus={false}
@@ -365,88 +319,9 @@ export function HeroSection() {
       </div>
         <div className="mb-8 sm:mb-16 sm:mt-32 mx-auto"></div>
 
-      {/* Auth Dialog */}
-      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-        <BlurredDialogOverlay />
-        <DialogContent className="sm:max-w-md rounded-xl bg-background border border-border">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-xl font-medium">
-                Sign in to continue
-              </DialogTitle>
-              {/* <button 
-                onClick={() => setAuthDialogOpen(false)}
-                className="rounded-full p-1 hover:bg-muted transition-colors"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button> */}
-            </div>
-            <DialogDescription className="text-muted-foreground">
-              Sign in or create an account to talk with Suna
-            </DialogDescription>
-          </DialogHeader>
+      {/* Auth Dialog removed for self-hosted deployment */}
 
-
-
-          {/* OAuth Sign In */}
-          <div className="w-full">
-            <GoogleSignIn returnUrl="/dashboard" />
-            <GitHubSignIn returnUrl="/dashboard" />
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-[#F3F4F6] dark:bg-[#F9FAFB]/[0.02] text-muted-foreground">
-                or continue with email
-              </span>
-            </div>
-          </div>
-
-          {/* Sign in options */}
-          <div className="space-y-4 pt-4">
-            <Link
-              href={`/auth?returnUrl=${encodeURIComponent('/dashboard')}`}
-              className="flex h-12 items-center justify-center w-full text-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
-              onClick={() => setAuthDialogOpen(false)}
-            >
-              Sign in with email
-            </Link>
-
-            <Link
-              href={`/auth?mode=signup&returnUrl=${encodeURIComponent('/dashboard')}`}
-              className="flex h-12 items-center justify-center w-full text-center rounded-full border border-border bg-background hover:bg-accent/20 transition-all"
-              onClick={() => setAuthDialogOpen(false)}
-            >
-              Create new account
-            </Link>
-          </div>
-
-          <div className="mt-4 text-center text-xs text-muted-foreground">
-            By continuing, you agree to our{' '}
-            <Link href="/terms" className="text-primary hover:underline">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Billing Error Alert here */}
-      <BillingErrorAlert
-        message={billingError?.message}
-        currentUsage={billingError?.currentUsage}
-        limit={billingError?.limit}
-        accountId={personalAccount?.account_id}
-        onDismiss={clearBillingError}
-        isOpen={!!billingError}
-      />
+      {/* Billing error alert removed for free self-hosted version */}
 
       {agentLimitData && (
         <AgentRunLimitDialog

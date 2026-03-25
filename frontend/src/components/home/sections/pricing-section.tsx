@@ -80,35 +80,17 @@ function BillingPeriodToggle({
   billingPeriod,
   setBillingPeriod
 }: {
-  billingPeriod: 'monthly' | 'yearly' | 'yearly_commitment';
-  setBillingPeriod: (period: 'monthly' | 'yearly' | 'yearly_commitment') => void;
+  billingPeriod: 'monthly';
+  setBillingPeriod: (period: 'monthly') => void;
 }) {
   return (
     <div className="flex items-center justify-center gap-3">
       <div className="relative bg-muted rounded-full p-1">
         <div className="flex">
           <div 
-            className={cn("px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer",
-              billingPeriod === 'monthly'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => setBillingPeriod('monthly')}
+            className={cn("px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer bg-background text-foreground shadow-sm")}
           >
-            Monthly
-          </div>
-          <div 
-            className={cn("px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1 cursor-pointer",
-              billingPeriod === 'yearly_commitment'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => setBillingPeriod('yearly_commitment')}
-          >
-            Yearly
-            <span className="bg-green-600 text-green-50 dark:bg-green-500 dark:text-green-50 text-[10px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap">
-              15% off
-            </span>
+            Free Plan
           </div>
         </div>
       </div>
@@ -145,102 +127,56 @@ function PricingTier({
     return tier.price;
   };
 
-  // Get the price ID to use based on billing period
-  const getPriceId = () => {
-    if (billingPeriod === 'yearly_commitment' && tier.monthlyCommitmentStripePriceId) {
-      return tier.monthlyCommitmentStripePriceId;
-    } else if (billingPeriod === 'yearly' && tier.yearlyStripePriceId) {
-      // Legacy yearly plans (hidden from UI but still accessible)
-      return tier.yearlyStripePriceId;
-    }
-    return tier.stripePriceId;
+  // Get the tier ID to use based on billing period
+  const getTierId = () => {
+    return tier.tierId;
   };
 
   const displayPrice = getDisplayPrice();
-  const priceId = getPriceId();
+  const tierId = getTierId();
 
   // Auto-select the correct plan only on initial load - simplified since no more Custom tier
-  const handleSubscribe = async (planStripePriceId: string) => {
-    if (!isAuthenticated) {
-      window.location.href = '/auth?mode=signup';
-      return;
-    }
+  const handleSubscribe = async (planTierId: string) => {
+    // Authentication not required for free self-hosted version
+    // if (!isAuthenticated) {
+    //   window.location.href = '/auth?mode=signup';
+    //   return;
+    // }
 
-    if (isLoading[planStripePriceId]) {
+    if (isLoading[planTierId]) {
       return;
     }
 
     try {
-      onPlanSelect?.(planStripePriceId);
+      onPlanSelect?.(planTierId);
 
       // Determine commitment type based on billing period
       const commitmentType = billingPeriod === 'yearly_commitment' ? 'yearly_commitment' : 
                           billingPeriod === 'yearly' ? 'yearly' : 
                           'monthly';
 
-      const response: CreateCheckoutSessionResponse =
-        await createCheckoutSession({
-          price_id: planStripePriceId,
-          success_url: returnUrl,
-          cancel_url: returnUrl,
-          commitment_type: commitmentType,
-        });
+      // Billing API calls removed for free self-hosted version
+      // const response = await fetch('/api/billing/user/tier/change', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({
+      //     new_tier: planTierId
+      //   })
+      // });
 
-      switch (response.status) {
-        case 'new':
-        case 'checkout_created':
-        case 'commitment_created':
-          if (response.url) {
-            posthog.capture('plan_purchase_attempted');
-            window.location.href = response.url;
-          } else {
-            console.error(
-              "Error: Received status but no checkout URL.",
-            );
-            toast.error('Failed to initiate subscription. Please try again.');
-          }
-          break;
-        case 'upgraded':
-        case 'updated':
-          const upgradeMessage = response.details?.is_upgrade
-            ? `Subscription upgraded from $${response.details.current_price} to $${response.details.new_price}`
-            : 'Subscription updated successfully';
-          toast.success(upgradeMessage);
-          posthog.capture('plan_upgraded');
-          if (onSubscriptionUpdate) onSubscriptionUpdate();
-          break;
-        case 'commitment_blocks_downgrade':
-          toast.warning(response.message || 'Cannot downgrade during commitment period');
-          break;
-        case 'downgrade_scheduled':
-        case 'scheduled':
-          const effectiveDate = response.effective_date
-            ? new Date(response.effective_date).toLocaleDateString()
-            : 'the end of your billing period';
-
-          const statusChangeMessage = 'Subscription change scheduled';
-
-          toast.success(
-            <div>
-              <p>{statusChangeMessage}</p>
-              <p className="text-sm mt-1">
-                Your plan will change on {effectiveDate}.
-              </p>
-            </div>,
-          );
-          posthog.capture('plan_downgraded');
-          if (onSubscriptionUpdate) onSubscriptionUpdate();
-          break;
-        case 'no_change':
-          toast.info(response.message || 'You are already on this plan.');
-          break;
-        default:
-          console.warn(
-            'Received unexpected status from createCheckoutSession:',
-            response.status,
-          );
-          toast.error('An unexpected error occurred. Please try again.');
-      }
+      // if (response.ok) {
+      //   toast.success('Tier updated successfully!');
+      //   if (onSubscriptionUpdate) onSubscriptionUpdate();
+      // } else {
+      //   const error = await response.json();
+      //   toast.error(error.detail || 'Failed to update tier');
+      // }
+      
+      // For free self-hosted version, just show success
+      toast.success('Free plan activated!');
+      if (onSubscriptionUpdate) onSubscriptionUpdate();
     } catch (error: any) {
       console.error('Error processing subscription:', error);
       const errorMessage =
@@ -253,17 +189,17 @@ function PricingTier({
 
   // Find the current tier (moved outside conditional for JSX access)
   const currentTier = siteConfig.cloudPricingItems.find(
-    (p) => p.stripePriceId === currentSubscription?.price_id || p.yearlyStripePriceId === currentSubscription?.price_id,
+    (p) => p.tierId === currentSubscription?.tier,
   );
 
   const isCurrentActivePlan =
-    isAuthenticated && currentSubscription?.price_id === priceId;
+    isAuthenticated && currentSubscription?.tier === tierId;
   const isScheduled = isAuthenticated && currentSubscription?.has_schedule;
   const isScheduledTargetPlan =
-    isScheduled && currentSubscription?.scheduled_price_id === priceId;
-  const isPlanLoading = isLoading[priceId];
+    isScheduled && currentSubscription?.scheduled_tier === tierId;
+  const isPlanLoading = isLoading[tierId];
 
-  let buttonText = isAuthenticated ? 'Select Plan' : 'Start Free';
+  let buttonText = 'Use Free'; // Always free in self-hosted version
   let buttonDisabled = isPlanLoading;
   let buttonVariant: ButtonVariant = null;
   let ringClass = '';
@@ -271,8 +207,8 @@ function PricingTier({
   let buttonClassName = '';
   
   // Check plan change restrictions using comprehensive validation
-  const planChangeValidation = (isAuthenticated && currentSubscription?.price_id) 
-    ? isPlanChangeAllowed(currentSubscription.price_id, priceId)
+  const planChangeValidation = (isAuthenticated && currentSubscription?.tier)
+    ? isPlanChangeAllowed(currentSubscription.tier, tierId)
     : { allowed: true };
 
   if (isAuthenticated) {
@@ -301,7 +237,7 @@ function PricingTier({
           Scheduled
         </span>
       );
-    } else if (isScheduled && currentSubscription?.price_id === priceId) {
+    } else if (isScheduled && currentSubscription?.tier === tierId) {
       buttonText = 'Change Scheduled';
       buttonVariant = 'secondary';
       ringClass = isCompact ? 'ring-1 ring-primary' : 'ring-2 ring-primary';
@@ -326,12 +262,13 @@ function PricingTier({
           : parseFloat(selectedPriceString.replace(/[^\d.]/g, '') || '0') * 100;
 
       // Check if current subscription is monthly and target is yearly commitment for same tier
-      const currentIsMonthly = currentTier && currentSubscription?.price_id === currentTier.stripePriceId;
-      const currentIsYearly = currentTier && currentSubscription?.price_id === currentTier.yearlyStripePriceId;
-      const currentIsYearlyCommitment = currentTier && currentSubscription?.price_id === currentTier.monthlyCommitmentStripePriceId;
-      const targetIsMonthly = priceId === tier.stripePriceId;
-      const targetIsYearly = priceId === tier.yearlyStripePriceId;
-      const targetIsYearlyCommitment = priceId === tier.monthlyCommitmentStripePriceId;
+      // For self-hosted, determine billing type based on tier and billing period
+      const currentIsMonthly = currentTier && currentSubscription?.tier === currentTier.tierId;
+      const currentIsYearly = false; // No yearly plans in free version
+      const currentIsYearlyCommitment = false; // No yearly commitment plans in free version
+      const targetIsMonthly = tierId === tier.tierId;
+      const targetIsYearly = false; // No yearly plans in free version
+      const targetIsYearlyCommitment = false; // No yearly commitment plans in free version
       const isSameTierUpgradeToLongerTerm = currentTier && currentTier.name === tier.name &&
         ((currentIsMonthly && (targetIsYearly || targetIsYearlyCommitment)) || 
          (currentIsYearlyCommitment && targetIsYearly));
@@ -510,7 +447,7 @@ function PricingTier({
         insideDialog ? "px-3 pt-1 pb-3" : "px-4 pt-2 pb-4"
       )}>
         <Button
-          onClick={() => handleSubscribe(priceId)}
+          onClick={() => handleSubscribe(tierId)}
           disabled={buttonDisabled}
           variant={buttonVariant || 'default'}
           className={cn(
@@ -552,34 +489,27 @@ export function PricingSection({
   const isAuthenticated = !!subscriptionData && subscriptionQueryError === null;
   const currentSubscription = subscriptionData || null;
 
-  const getDefaultBillingPeriod = useCallback((): 'monthly' | 'yearly' | 'yearly_commitment' => {
+  const getDefaultBillingPeriod = useCallback((): 'monthly' => {
     if (!isAuthenticated || !currentSubscription) {
-      return 'yearly_commitment';
+      return 'monthly';
     }
 
-    const currentTier = siteConfig.cloudPricingItems.find(
-      (p) => p.stripePriceId === currentSubscription.price_id || 
-             p.yearlyStripePriceId === currentSubscription.price_id ||
-             p.monthlyCommitmentStripePriceId === currentSubscription.price_id,
-    );
+          const currentTier = siteConfig.cloudPricingItems.find(
+        (p) => p.tierId === currentSubscription.tier,
+      );
 
     if (currentTier) {
-      // Check if current subscription is yearly commitment (new yearly)
-      if (currentTier.monthlyCommitmentStripePriceId === currentSubscription.price_id) {
-        return 'yearly_commitment';
-      } else if (currentTier.yearlyStripePriceId === currentSubscription.price_id) {
-        // Legacy yearly plans
-        return 'yearly';
-      } else if (currentTier.stripePriceId === currentSubscription.price_id) {
+      // Check if current subscription is monthly (free version only)
+      if (currentTier.tierId === currentSubscription.tier) {
         return 'monthly';
       }
     }
 
-    // Default to yearly_commitment (new yearly) if we can't determine current plan type
-    return 'yearly_commitment';
+    // Default to monthly for free version
+    return 'monthly';
   }, [isAuthenticated, currentSubscription]);
 
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly' | 'yearly_commitment'>(getDefaultBillingPeriod());
+  const [billingPeriod, setBillingPeriod] = useState<'monthly'>(getDefaultBillingPeriod());
   const [planLoadingStates, setPlanLoadingStates] = useState<Record<string, boolean>>({});
 
   // Update billing period when subscription data changes
@@ -644,7 +574,7 @@ export function PricingSection({
           !insideDialog && "grid-rows-1 items-stretch"
         )}>
           {siteConfig.cloudPricingItems
-            .filter((tier) => !tier.hidden && (!hideFree || tier.price !== '$0'))
+            .filter((tier) => (!hideFree || tier.price !== '$0'))
             .map((tier) => (
               <PricingTier
                 key={tier.name}

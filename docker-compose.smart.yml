@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+  frontend:
+  worker:
+
+networks:
+  suna-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  backend_logs:
+    driver: local
+  worker_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+  sandbox_data:
+    driver: local
+

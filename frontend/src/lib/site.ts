@@ -1,11 +1,10 @@
 export const siteConfig = {
-  name: 'Kortix Suna',
-  url: 'https://suna.so/',
-  description: 'Kortix AI',
+  name: 'Zippy Suna',
+  url: 'http://localhost:18884/',
+  description: 'A fully free and self-hosted fork of the open source Kortix Suna project',
   links: {
-    twitter: 'https://x.com/kortixai',
-    github: 'https://github.com/kortix-ai/',
-    linkedin: 'https://www.linkedin.com/company/kortix/',
+    // Local instance - no external links needed
+    github: 'https://github.com/GoZippy/suna',
   },
 };
 

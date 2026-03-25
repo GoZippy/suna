@@ -10,7 +10,7 @@ import { PricingSection } from '@/components/home/sections/pricing-section';
 import { UseCasesSection } from '@/components/home/sections/use-cases-section';
 import { ModalProviders } from '@/providers/modal-providers';
 import { HeroVideoSection } from '@/components/home/sections/hero-video-section';
-import { BackgroundAALChecker } from '@/components/auth/background-aal-checker';
+// Authentication removed for local-only operation
 import { BentoSection } from '@/components/home/sections/bento-section';
 import { CompanyShowcase } from '@/components/home/sections/company-showcase';
 import { FeatureSection } from '@/components/home/sections/feature-section';
@@ -23,21 +23,16 @@ export default function Home() {
   return (
     <>
       <ModalProviders />
-      <BackgroundAALChecker>
-        <main className="flex flex-col items-center justify-center min-h-screen w-full">
-          <div className="w-full divide-y divide-border">
-            <HeroSection />
-            <BentoSection />
-            {/* <AgentShowcaseSection /> */}
-            <OpenSourceSection />
-            <PricingSection />
-            {/* <TestimonialSection /> */}
-            {/* <FAQSection /> */}
-            <CTASection />
-            <FooterSection />
-          </div>
-        </main>
-      </BackgroundAALChecker>
+             <main className="flex flex-col items-center justify-center min-h-screen w-full">
+         <div className="w-full divide-y divide-border">
+           <HeroSection />
+           <BentoSection />
+           <FeatureSection />
+           <PricingSection />
+           <CTASection />
+           <FooterSection />
+         </div>
+       </main>
     </>
   );
 }

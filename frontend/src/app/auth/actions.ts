@@ -1,7 +1,9 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+
+// Local authentication - no Supabase dependencies
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:18080';
 
 async function sendWelcomeEmail(email: string, name?: string) {
   try {
@@ -48,23 +50,29 @@ export async function signIn(prevState: any, formData: FormData) {
     return { message: 'Password must be at least 6 characters' };
   }
 
-  const supabase = await createClient();
+  try {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { message: errorData.detail || 'Could not authenticate user' };
+    }
 
-  if (error) {
-    return { message: error.message || 'Could not authenticate user' };
+    // Login successful - the client-side auth provider will handle the session
+    return { success: true, redirectTo: returnUrl || '/dashboard' };
+  } catch (error) {
+    console.error('Sign in error:', error);
+    return { message: 'Network error - please try again' };
   }
-
-  // Use client-side navigation instead of server-side redirect
-  return { success: true, redirectTo: returnUrl || '/dashboard' };
 }
 
 export async function signUp(prevState: any, formData: FormData) {
-  const origin = formData.get('origin') as string;
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
@@ -74,109 +82,96 @@ export async function signUp(prevState: any, formData: FormData) {
     return { message: 'Please enter a valid email address' };
   }
 
-  if (!password || password.length < 6) {
-    return { message: 'Password must be at least 6 characters' };
+  if (!password || password.length < 8) {
+    return { message: 'Password must be at least 8 characters' };
   }
 
   if (password !== confirmPassword) {
     return { message: 'Passwords do not match' };
   }
 
-  const supabase = await createClient();
+  try {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        role: 'user',
+        tier: 'free'
+      }),
+    });
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback?returnUrl=${returnUrl}`,
-    },
-  });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { message: errorData.detail || 'Could not create account' };
+    }
 
-  if (error) {
-    return { message: error.message || 'Could not create account' };
-  }
+    const userName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-  const userName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-  const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (signInData && signInData.user) {
+    // Send welcome email
     sendWelcomeEmail(email, userName);
-  }
 
-  if (signInError) {
-    return {
-      message:
-        'Account created! Check your email to confirm your registration.',
-    };
+    // Registration successful - the client-side auth provider will handle the session
+    return { success: true, redirectTo: returnUrl || '/dashboard' };
+  } catch (error) {
+    console.error('Sign up error:', error);
+    return { message: 'Network error - please try again' };
   }
-
-  // Use client-side navigation instead of server-side redirect
-  return { success: true, redirectTo: returnUrl || '/dashboard' };
 }
 
 export async function forgotPassword(prevState: any, formData: FormData) {
   const email = formData.get('email') as string;
-  const origin = formData.get('origin') as string;
 
   if (!email || !email.includes('@')) {
     return { message: 'Please enter a valid email address' };
   }
 
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/reset-password`,
-  });
-
-  if (error) {
-    return { message: error.message || 'Could not send password reset email' };
+  try {
+    // For self-hosted, we'll show a message that password reset needs to be handled manually
+    // In a production self-hosted setup, you would implement your own password reset mechanism
+    return {
+      success: false,
+      message: 'Password reset not implemented for self-hosted. Please contact your administrator.',
+    };
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return { message: 'Network error - please try again' };
   }
-
-  return {
-    success: true,
-    message: 'Check your email for a password reset link',
-  };
 }
 
 export async function resetPassword(prevState: any, formData: FormData) {
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
 
-  if (!password || password.length < 6) {
-    return { message: 'Password must be at least 6 characters' };
+  if (!password || password.length < 8) {
+    return { message: 'Password must be at least 8 characters' };
   }
 
   if (password !== confirmPassword) {
     return { message: 'Passwords do not match' };
   }
 
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.updateUser({
-    password,
-  });
-
-  if (error) {
-    return { message: error.message || 'Could not update password' };
+  try {
+    // For self-hosted, password reset would need to be implemented via admin API
+    return {
+      success: false,
+      message: 'Password reset not implemented for self-hosted. Please contact your administrator.',
+    };
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return { message: 'Network error - please try again' };
   }
-
-  return {
-    success: true,
-    message: 'Password updated successfully',
-  };
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    return { message: error.message || 'Could not sign out' };
+  try {
+    // For local auth, we'll just redirect to home and let client handle session cleanup
+    return redirect('/');
+  } catch (error) {
+    console.error('Sign out error:', error);
+    return redirect('/');
   }
-
-  return redirect('/');
 }

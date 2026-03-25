@@ -309,7 +309,8 @@ async def make_llm_api_call(
     top_p: Optional[float] = None,
     model_id: Optional[str] = None,
     enable_thinking: Optional[bool] = False,
-    reasoning_effort: Optional[str] = 'low'
+    reasoning_effort: Optional[str] = 'low',
+    prefer_local: bool = False
 ) -> Union[Dict[str, Any], AsyncGenerator, ModelResponse]:
     """
     Make an API call to a language model using LiteLLM.
@@ -337,6 +338,22 @@ async def make_llm_api_call(
         LLMRetryError: If API call fails after retries
         LLMError: For other API-related errors
     """
+    # Check if we should try local models first
+    if prefer_local and config.ENABLE_LOCAL_LLM:
+        try:
+            from services.local_llm import make_local_llm_call
+            logger.debug(f"Attempting local LLM call with model: {model_name}")
+            return await make_local_llm_call(
+                messages=messages,
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream,
+                top_p=top_p
+            )
+        except Exception as local_error:
+            logger.warning(f"Local LLM call failed: {local_error}, falling back to external API")
+    
     # debug <timestamp>.json messages
     logger.debug(f"Making LLM API call to model: {model_name} (Thinking: {enable_thinking}, Effort: {reasoning_effort})")
     logger.debug(f"📡 API Call: Using model {model_name}")

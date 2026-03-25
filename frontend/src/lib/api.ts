@@ -1,14 +1,48 @@
-import { createClient } from '@/lib/supabase/client';
+// Local backend API client - no Supabase dependencies
 import { handleApiError } from './error-handler';
-import posthog from 'posthog-js';
 
 // Get backend URL from environment variables
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:18080';
 
 // Set to keep track of agent runs that are known to be non-running
 const nonRunningAgentRuns = new Set<string>();
 // Map to keep track of active EventSource streams
 const activeStreams = new Map<string, EventSource>();
+
+// Helper function to get auth token
+const getAuthToken = (): string | null => {
+  try {
+    const stored = localStorage.getItem('local_auth_session');
+    if (stored) {
+      const session = JSON.parse(stored);
+      return session.access_token;
+    }
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+  }
+  return null;
+};
+
+// Helper function to make authenticated requests
+const makeAuthenticatedRequest = async (
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+};
 
 // Custom error for billing issues
 export class BillingError extends Error {
@@ -234,43 +268,21 @@ export type WorkflowEdge = {
 // Project APIs
 export const getProjects = async (): Promise<Project[]> => {
   try {
-    const supabase = createClient();
+    const response = await makeAuthenticatedRequest(`${API_URL}/api/projects`);
 
-    // Get the current user's ID to filter projects
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      console.error('Error getting current user:', userError);
-      return [];
-    }
-
-    // If no user is logged in, return an empty array
-    if (!userData.user) {
-      return [];
-    }
-
-    // Query only projects where account_id matches the current user's ID
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('account_id', userData.user.id);
-
-    if (error) {
-      // Handle permission errors specifically
-      if (
-        error.code === '42501' &&
-        error.message.includes('has_role_on_account')
-      ) {
-        console.error(
-          'Permission error: User does not have proper account access',
-        );
-        return []; // Return empty array instead of throwing
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error('Authentication error: User not logged in');
+        return [];
       }
-      throw error;
+      throw new Error(`Failed to fetch projects: ${response.statusText}`);
     }
 
-    // Map database fields to our Project type
-    const mappedProjects: Project[] = (data || []).map((project) => ({
-      id: project.project_id,
+    const data = await response.json();
+
+    // Map API response to our Project type
+    const mappedProjects: Project[] = (data.projects || []).map((project: any) => ({
+      id: project.id,
       name: project.name || '',
       description: project.description || '',
       account_id: project.account_id,
@@ -288,53 +300,32 @@ export const getProjects = async (): Promise<Project[]> => {
   } catch (err) {
     console.error('Error fetching projects:', err);
     handleApiError(err, { operation: 'load projects', resource: 'projects' });
-    // Return empty array for permission errors to avoid crashing the UI
+    // Return empty array for errors to avoid crashing the UI
     return [];
   }
 };
 
 export const getProject = async (projectId: string): Promise<Project> => {
-  const supabase = createClient();
-
   try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('project_id', projectId)
-      .single();
+    const response = await makeAuthenticatedRequest(`${API_URL}/api/projects/${projectId}`);
 
-    if (error) {
-      // Handle the specific "no rows returned" error from Supabase
-      if (error.code === 'PGRST116') {
+    if (!response.ok) {
+      if (response.status === 404) {
         throw new Error(`Project not found or not accessible: ${projectId}`);
       }
-      throw error;
+      throw new Error(`Failed to fetch project: ${response.statusText}`);
     }
+
+    const data = await response.json();
 
     // If project has a sandbox, ensure it's started
     if (data.sandbox?.id) {
       // Fire off sandbox activation without blocking
       const ensureSandboxActive = async () => {
         try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          // For public projects, we don't need authentication
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-          };
-
-          if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-          }
-
-          const response = await fetch(
-            `${API_URL}/project/${projectId}/sandbox/ensure-active`,
-            {
-              method: 'POST',
-              headers,
-            },
+          const response = await makeAuthenticatedRequest(
+            `${API_URL}/api/projects/${projectId}/sandbox/ensure-active`,
+            { method: 'POST' }
           );
 
           if (!response.ok) {
@@ -355,14 +346,15 @@ export const getProject = async (projectId: string): Promise<Project> => {
       ensureSandboxActive();
     }
 
-    // Map database fields to our Project type
+    // Map API response to our Project type
     const mappedProject: Project = {
-      id: data.project_id,
+      id: data.id,
       name: data.name || '',
       description: data.description || '',
       account_id: data.account_id,
       is_public: data.is_public || false,
       created_at: data.created_at,
+      updated_at: data.updated_at,
       sandbox: data.sandbox || {
         id: '',
         pass: '',
@@ -383,118 +375,115 @@ export const createProject = async (
   projectData: { name: string; description: string },
   accountId?: string,
 ): Promise<Project> => {
-  const supabase = createClient();
-
-  // If accountId is not provided, we'll need to get the user's ID
-  if (!accountId) {
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-
-    if (userError) throw userError;
-    if (!userData.user)
-      throw new Error('You must be logged in to create a project');
-
-    // In Basejump, the personal account ID is the same as the user ID
-    accountId = userData.user.id;
-  }
-
-  const { data, error } = await supabase
-    .from('projects')
-    .insert({
+  try {
+    const requestData = {
       name: projectData.name,
       description: projectData.description || null,
-      account_id: accountId,
-    })
-    .select()
-    .single();
+    };
 
-  if (error) {
+    const response = await makeAuthenticatedRequest(`${API_URL}/api/projects`, {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('You must be logged in to create a project');
+      }
+      throw new Error(`Failed to create project: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    const project: Project = {
+      id: data.id,
+      name: data.name,
+      description: data.description || '',
+      account_id: data.account_id,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      sandbox: { id: '', pass: '', vnc_preview: '', sandbox_url: '' },
+    };
+    return project;
+  } catch (error) {
+    console.error('Error creating project:', error);
     handleApiError(error, { operation: 'create project', resource: 'project' });
     throw error;
   }
-
-  const project = {
-    id: data.project_id,
-    name: data.name,
-    description: data.description || '',
-    account_id: data.account_id,
-    created_at: data.created_at,
-    sandbox: { id: '', pass: '', vnc_preview: '' },
-  };
-  return project;
 };
 
 export const updateProject = async (
   projectId: string,
   data: Partial<Project>,
 ): Promise<Project> => {
-  const supabase = createClient();
+  try {
+    // Sanity check to avoid update errors
+    if (!projectId || projectId === '') {
+      console.error('Attempted to update project with invalid ID:', projectId);
+      throw new Error('Cannot update project: Invalid project ID');
+    }
 
-  // Sanity check to avoid update errors
-  if (!projectId || projectId === '') {
-    console.error('Attempted to update project with invalid ID:', projectId);
-    throw new Error('Cannot update project: Invalid project ID');
-  }
+    const response = await makeAuthenticatedRequest(`${API_URL}/api/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
 
-  const { data: updatedData, error } = await supabase
-    .from('projects')
-    .update(data)
-    .eq('project_id', projectId)
-    .select()
-    .single();
+    if (!response.ok) {
+      throw new Error(`Failed to update project: ${response.statusText}`);
+    }
 
-  if (error) {
+    const updatedData = await response.json();
+
+    // Dispatch a custom event to notify components about the project change
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('project-updated', {
+          detail: {
+            projectId,
+            updatedData: {
+              id: updatedData.id,
+              name: updatedData.name,
+              description: updatedData.description,
+            },
+          },
+        }),
+      );
+    }
+
+    // Return formatted project data - use same mapping as getProject
+    const project: Project = {
+      id: updatedData.id,
+      name: updatedData.name,
+      description: updatedData.description || '',
+      account_id: updatedData.account_id,
+      created_at: updatedData.created_at,
+      updated_at: updatedData.updated_at,
+      sandbox: updatedData.sandbox || {
+        id: '',
+        pass: '',
+        vnc_preview: '',
+        sandbox_url: '',
+      },
+    };
+    return project;
+  } catch (error) {
     console.error('Error updating project:', error);
     handleApiError(error, { operation: 'update project', resource: `project ${projectId}` });
     throw error;
   }
-
-  if (!updatedData) {
-    const noDataError = new Error('No data returned from update');
-    handleApiError(noDataError, { operation: 'update project', resource: `project ${projectId}` });
-    throw noDataError;
-  }
-
-  // Dispatch a custom event to notify components about the project change
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('project-updated', {
-        detail: {
-          projectId,
-          updatedData: {
-            id: updatedData.project_id,
-            name: updatedData.name,
-            description: updatedData.description,
-          },
-        },
-      }),
-    );
-  }
-
-  // Return formatted project data - use same mapping as getProject
-  const project = {
-    id: updatedData.project_id,
-    name: updatedData.name,
-    description: updatedData.description || '',
-    account_id: updatedData.account_id,
-    created_at: updatedData.created_at,
-    sandbox: updatedData.sandbox || {
-      id: '',
-      pass: '',
-      vnc_preview: '',
-      sandbox_url: '',
-    },
-  };
-  return project;
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('project_id', projectId);
+  try {
+    const response = await makeAuthenticatedRequest(`${API_URL}/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`Failed to delete project: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error deleting project:', error);
     handleApiError(error, { operation: 'delete project', resource: `project ${projectId}` });
     throw error;
   }
@@ -1582,6 +1571,7 @@ export interface SubscriptionStatus {
   status: string; // Includes 'active', 'trialing', 'past_due', 'scheduled_downgrade', 'no_subscription'
   plan_name?: string;
   price_id?: string;
+  tier?: string; // For self-hosted compatibility
   current_period_end?: string; // ISO datetime string
   cancel_at_period_end?: boolean;
   trial_end?: string; // ISO datetime string
@@ -1591,6 +1581,7 @@ export interface SubscriptionStatus {
   // Fields for scheduled changes
   has_schedule?: boolean;
   scheduled_plan_name?: string;
+  scheduled_tier?: string; // For self-hosted tier scheduling
   scheduled_price_id?: string;
   scheduled_change_date?: string; // ISO datetime string
   // Subscription data for frontend components

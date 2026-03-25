@@ -496,6 +496,13 @@ When using the tools:
                             }
                         )
 
+                    # Determine if we should prefer local models
+                    prefer_local = (
+                        config.ENABLE_LOCAL_LLM and
+                        not llm_model.startswith(("openrouter/", "anthropic/", "xai/", "gemini/", "bedrock/")) and
+                        not llm_model in ["gpt-4", "gpt-5", "gpt-5-mini"]  # Skip known external models
+                    )
+
                     llm_response = await make_llm_api_call(
                         prepared_messages, # Pass the potentially modified messages
                         llm_model,
@@ -505,7 +512,8 @@ When using the tools:
                         tool_choice=tool_choice if config.native_tool_calling else "none",
                         stream=stream,
                         enable_thinking=enable_thinking,
-                        reasoning_effort=reasoning_effort
+                        reasoning_effort=reasoning_effort,
+                        prefer_local=prefer_local
                     )
                     logger.debug("Successfully received raw LLM API response stream/object")
 

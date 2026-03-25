@@ -269,7 +269,7 @@ class Configuration:
     
     # Redis configuration
     REDIS_HOST: str
-    REDIS_PORT: int = 6379
+    REDIS_PORT: int = 6391
     REDIS_PASSWORD: Optional[str] = None
     REDIS_SSL: bool = True
     
@@ -304,8 +304,8 @@ class Configuration:
     USE_LOCAL_CONTAINERS: bool = False  # Set to True to use local Docker instead of Daytona
     LOCAL_CONTAINER_IMAGE: str = "suna/agent-sandbox:latest"
     LOCAL_CONTAINER_NETWORK: str = "suna_sandbox_network"
-    LOCAL_CONTAINER_PORT_RANGE_START: int = 15900
-    LOCAL_CONTAINER_PORT_RANGE_END: int = 16900
+    LOCAL_CONTAINER_PORT_RANGE_START: int = 15991
+    LOCAL_CONTAINER_PORT_RANGE_END: int = 16991
 
     # LangFuse configuration
     LANGFUSE_PUBLIC_KEY: Optional[str] = None
@@ -349,6 +349,32 @@ class Configuration:
         'tier_6_42_yearly_commitment': 20,
         'tier_25_170_yearly_commitment': 100,
     }
+
+    # Grafana configuration
+    GRAFANA_ENABLED: bool = True
+    GRAFANA_PORT: int = 3191
+    GRAFANA_ADMIN_USER: str = "admin"
+    GRAFANA_ADMIN_PASSWORD: str = "admin"
+    
+    # Alert thresholds
+    CPU_USAGE_THRESHOLD: int = 80  # percentage
+    MEMORY_USAGE_THRESHOLD: int = 85  # percentage
+    DISK_USAGE_THRESHOLD: int = 90  # percentage
+    DATABASE_LATENCY_THRESHOLD: int = 1000  # milliseconds
+    REDIS_LATENCY_THRESHOLD: int = 100  # milliseconds
+    
+    # Audit logging configuration
+    AUDIT_LOG_RETENTION_DAYS: int = 90
+    AUDIT_LOG_MAX_ENTRIES: int = 10000
+    
+    # Monitoring feature flags
+    ENABLE_SYSTEM_METRICS: bool = True
+    ENABLE_APPLICATION_METRICS: bool = True
+    ENABLE_BUSINESS_METRICS: bool = True
+    ENABLE_DATABASE_METRICS: bool = True
+    ENABLE_REDIS_METRICS: bool = True
+    ENABLE_WEBSOCKET_METRICS: bool = True
+    ENABLE_FILE_STORAGE_METRICS: bool = True
 
     @property
     def MAX_PARALLEL_AGENT_RUNS(self) -> int:
